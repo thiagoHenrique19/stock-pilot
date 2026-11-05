@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.stockpilot.core.exception.BusinessRuleException;
+import com.stockpilot.core.exception.InvalidRequestException;
 import com.stockpilot.core.exception.RequestInProgressException;
 import com.stockpilot.core.idempotency.IdempotencyRecord;
 import com.stockpilot.core.idempotency.RequestFingerprint;
@@ -22,6 +23,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -162,5 +166,28 @@ class IdempotencyServiceTest {
                 .isInstanceOf(IllegalStateException.class);
 
         verify(store).release("sales", "k1");
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"", "   ", "has space", "tab\tkey", "accént", "line\nbreak"})
+    void shouldRejectMalformedKeys(String key) {
+        assertThatThrownBy(() -> service.execute("sales", key, "request", String.class, this::run))
+                .isInstanceOf(InvalidRequestException.class);
+        verify(store, never()).reserve(any(), any(), any());
+    }
+
+    @Test
+    void shouldRejectKeysLongerThan255Characters() {
+        assertThatThrownBy(() -> service.execute("sales", "k".repeat(256), "request", String.class, this::run))
+                .isInstanceOf(InvalidRequestException.class);
+    }
+
+    @Test
+    void shouldAcceptKeysOfExactly255Characters() {
+        String key = "k".repeat(255);
+        when(store.reserve("sales", key, hash())).thenReturn(true);
+
+        assertThat(service.execute("sales", key, "request", String.class, this::run).replayed()).isFalse();
     }
 }

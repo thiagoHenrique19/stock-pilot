@@ -1,6 +1,7 @@
 package com.stockpilot.application.service;
 
 import com.stockpilot.core.exception.BusinessRuleException;
+import com.stockpilot.core.exception.InvalidRequestException;
 import com.stockpilot.core.exception.RequestInProgressException;
 import com.stockpilot.core.idempotency.RequestFingerprint;
 import com.stockpilot.core.port.in.ExecuteIdempotentlyUseCase;
@@ -15,6 +16,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class IdempotencyService implements ExecuteIdempotentlyUseCase {
+
+    static final int MAX_KEY_LENGTH = 255;
 
     private final IdempotencyStore store;
     private final PayloadCodec codec;
@@ -32,6 +35,7 @@ public class IdempotencyService implements ExecuteIdempotentlyUseCase {
     @Override
     public <T> Result<T> execute(String scope, String key, Object request, Class<T> responseType,
                                  Supplier<T> action) {
+        requireValid(key);
         String hash = RequestFingerprint.of(codec.write(request));
         if (store.reserve(scope, key, hash)) {
             return new Result<>(run(scope, key, action), false);
@@ -59,6 +63,13 @@ public class IdempotencyService implements ExecuteIdempotentlyUseCase {
         } catch (RuntimeException failure) {
             store.release(scope, key);
             throw failure;
+        }
+    }
+
+    private static void requireValid(String key) {
+        if (key == null || key.isBlank() || key.length() > MAX_KEY_LENGTH || !key.chars().allMatch(c -> c > 32 && c < 127)) {
+            throw new InvalidRequestException("Idempotency-Key must be 1 to " + MAX_KEY_LENGTH
+                    + " printable ASCII characters without spaces");
         }
     }
 }
