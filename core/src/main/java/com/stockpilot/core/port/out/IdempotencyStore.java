@@ -9,4 +9,7 @@ public interface IdempotencyStore {
     boolean reserve(String scope, String key, String requestHash);
 
     Optional<IdempotencyRecord> find(String scope, String key);
+
+    /** Stores the response and marks the key completed. Meant to run inside the business transaction. */
+    void complete(String scope, String key, String responseSnapshot);
 }

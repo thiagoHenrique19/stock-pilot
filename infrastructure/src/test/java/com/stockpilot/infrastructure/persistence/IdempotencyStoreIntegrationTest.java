@@ -47,4 +47,17 @@ class IdempotencyStoreIntegrationTest extends AbstractIntegrationTest {
         assertThat(record.responseSnapshot()).isNull();
         assertThat(store.find("sales", newKey())).isEmpty();
     }
+
+    @Test
+    void shouldStoreTheResponseSnapshotWhenCompleted() {
+        String key = newKey();
+        store.reserve("sales", key, HASH);
+
+        store.complete("sales", key, "{\"id\":1}");
+
+        IdempotencyRecord record = store.find("sales", key).orElseThrow();
+        assertThat(record.isCompleted()).isTrue();
+        assertThat(record.responseSnapshot()).isEqualTo("{\"id\":1}");
+        assertThat(store.reserve("sales", key, HASH)).isFalse();
+    }
 }
