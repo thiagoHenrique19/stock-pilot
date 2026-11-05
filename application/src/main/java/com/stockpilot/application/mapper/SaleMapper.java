@@ -10,9 +10,10 @@ import org.springframework.stereotype.Component;
 public class SaleMapper {
 
     public SaleResponse toResponse(Sale sale) {
-        return new SaleResponse(sale.getId(), sale.getPaymentMethod(),
+        return new SaleResponse(sale.getId(), sale.getReceiptNumber(), sale.getStatus(), sale.getPaymentMethod(),
                 sale.getItems().stream().map(this::toItemResponse).toList(),
-                sale.getSubtotal(), sale.getDiscountAmount(), sale.getTotal(), sale.getCreatedAt());
+                sale.getSubtotal(), sale.getDiscountAmount(), sale.getTotal(),
+                sale.getAmountReceived(), sale.getChange(), sale.getCreatedAt(), sale.getCancelledAt());
     }
 
     private SaleItemResponse toItemResponse(SaleItem item) {
