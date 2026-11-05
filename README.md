@@ -55,6 +55,17 @@ Checkout, sale cancellation, restock and manual adjustments load the product wit
 
 The tests in `infrastructure/src/test/java/com/stockpilot/concurrency` run real threads against PostgreSQL: 20 buyers racing for 5 units, opposite-order sales, and restocks mixed with sales while checking that the ledger balances still chain correctly.
 
+## Idempotent requests
+
+`POST /api/sales`, `POST /api/products/{id}/restock` and `POST /api/products/{id}/adjustments` accept an optional `Idempotency-Key` header. A client that times out can just send the same request again.
+
+- Same key and same body: the stored response comes back with `Idempotent-Replayed: true` and nothing runs twice.
+- Same key and a different body: `422`.
+- Same key while the first request is still running: `409`.
+- A request that fails (for example not enough stock) gives the key back, so it can be retried.
+
+The key is claimed with an `INSERT ... ON CONFLICT DO NOTHING` on a primary key, so two simultaneous duplicates cannot both win. The response snapshot is written in the same transaction as the sale, which means either both exist or neither does. If a process dies after claiming a key, the claim is considered abandoned after `app.idempotency.stale-after` (2 minutes) and another request may take it over. Keys are scoped per operation (and per product for restock/adjust). I do not delete old keys yet; a cleanup job is on my list.
+
 ## Run
 Requires Java 21 and Docker.
 
