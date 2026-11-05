@@ -19,6 +19,10 @@ import com.stockpilot.core.exception.BusinessRuleException;
 import com.stockpilot.core.exception.ResourceNotFoundException;
 import com.stockpilot.core.port.out.ProductRepository;
 import com.stockpilot.core.port.out.SaleRepository;
+import com.stockpilot.core.port.out.StockMovementRepository;
+import com.stockpilot.core.domain.MovementType;
+import com.stockpilot.core.domain.StockMovement;
+import org.mockito.ArgumentCaptor;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
@@ -35,13 +39,15 @@ class SaleServiceTest {
     @Mock private ProductRepository productRepository;
     @Mock private SaleRepository saleRepository;
     @Mock private DomainEventPublisher eventPublisher;
+    @Mock private StockMovementRepository movementRepository;
 
     private SaleService saleService;
     private Product coffee;
 
     @BeforeEach
     void setUp() {
-        saleService = new SaleService(productRepository, saleRepository, new SaleMapper(), eventPublisher);
+        saleService = new SaleService(productRepository, saleRepository, new SaleMapper(),
+                new StockLedger(movementRepository, eventPublisher));
         coffee = Product.create("C-1", "Coffee", new BigDecimal("20.00"), 10, 3);
     }
 
@@ -62,6 +68,23 @@ class SaleServiceTest {
     }
 
     @Test
+    void shouldRecordOutMovementWithSaleReference() {
+        when(productRepository.findById(1L)).thenReturn(Optional.of(coffee));
+        when(saleRepository.save(any(Sale.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(movementRepository.save(any(StockMovement.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        saleService.checkout(requestFor(4, null));
+
+        ArgumentCaptor<StockMovement> captor = ArgumentCaptor.forClass(StockMovement.class);
+        verify(movementRepository).save(captor.capture());
+        StockMovement movement = captor.getValue();
+        assertThat(movement.getType()).isEqualTo(MovementType.OUT);
+        assertThat(movement.getQuantity()).isEqualTo(-4);
+        assertThat(movement.getBalanceAfter()).isEqualTo(6);
+        assertThat(movement.getReference()).startsWith("SALE-");
+    }
+
+    @Test
     void shouldApplyDiscount() {
         when(productRepository.findById(1L)).thenReturn(Optional.of(coffee));
         when(saleRepository.save(any(Sale.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -76,6 +99,7 @@ class SaleServiceTest {
     void shouldPublishLowStockEventWhenStockReachesMinimum() {
         when(productRepository.findById(1L)).thenReturn(Optional.of(coffee));
         when(saleRepository.save(any(Sale.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(movementRepository.save(any(StockMovement.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         saleService.checkout(requestFor(7, null));
 
@@ -102,6 +126,7 @@ class SaleServiceTest {
                 .hasMessageContaining("inactive");
         assertThat(coffee.getQuantity()).isEqualTo(10);
         verify(saleRepository, never()).save(any());
+        verify(movementRepository, never()).save(any());
     }
 
     @Test

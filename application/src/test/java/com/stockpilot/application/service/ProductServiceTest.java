@@ -16,7 +16,13 @@ import com.stockpilot.core.port.in.dto.ProductRequest;
 import com.stockpilot.core.port.in.dto.ProductResponse;
 import com.stockpilot.core.port.in.dto.ProductUpdateRequest;
 import com.stockpilot.core.port.out.CategoryRepository;
+import com.stockpilot.core.port.out.DomainEventPublisher;
 import com.stockpilot.core.port.out.ProductRepository;
+import com.stockpilot.core.port.out.StockMovementRepository;
+import com.stockpilot.core.domain.MovementType;
+import com.stockpilot.core.domain.StockMovement;
+import com.stockpilot.core.port.in.dto.RestockRequest;
+import org.mockito.ArgumentCaptor;
 import com.stockpilot.core.query.PageQuery;
 import com.stockpilot.core.query.PageResult;
 import com.stockpilot.core.query.ProductSearchCriteria;
@@ -34,13 +40,16 @@ class ProductServiceTest {
 
     @Mock private ProductRepository productRepository;
     @Mock private CategoryRepository categoryRepository;
+    @Mock private StockMovementRepository movementRepository;
+    @Mock private DomainEventPublisher eventPublisher;
 
     private ProductService service;
     private Product coffee;
 
     @BeforeEach
     void setUp() {
-        service = new ProductService(productRepository, categoryRepository, new ProductMapper());
+        service = new ProductService(productRepository, categoryRepository,
+                new StockLedger(movementRepository, eventPublisher), new ProductMapper());
         coffee = Product.create("C-1", "Coffee", new BigDecimal("20.00"), 10, 3);
     }
 
@@ -50,6 +59,7 @@ class ProductServiceTest {
         when(productRepository.existsBySku("TEA-1")).thenReturn(false);
         when(categoryRepository.findById(2L)).thenReturn(Optional.of(drinks));
         when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(movementRepository.save(any(StockMovement.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ProductResponse response = service.register(
                 new ProductRequest(" tea-1 ", "Tea", "Green", new BigDecimal("5.00"), 10, 2, 2L));
@@ -117,5 +127,44 @@ class ProductServiceTest {
 
         assertThat(result.totalElements()).isEqualTo(1);
         assertThat(result.content()).extracting(ProductResponse::name).containsExactly("Coffee");
+    }
+
+    @Test
+    void shouldRecordOpeningBalanceWhenRegisteringProductWithStock() {
+        when(productRepository.existsBySku("TEA-1")).thenReturn(false);
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(movementRepository.save(any(StockMovement.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.register(new ProductRequest("TEA-1", "Tea", null, BigDecimal.ONE, 7, 0, null));
+
+        ArgumentCaptor<StockMovement> captor = ArgumentCaptor.forClass(StockMovement.class);
+        verify(movementRepository).save(captor.capture());
+        assertThat(captor.getValue().getType()).isEqualTo(MovementType.IN);
+        assertThat(captor.getValue().getQuantity()).isEqualTo(7);
+        assertThat(captor.getValue().getBalanceAfter()).isEqualTo(7);
+    }
+
+    @Test
+    void shouldNotRecordMovementWhenRegisteringProductWithoutStock() {
+        when(productRepository.existsBySku("TEA-1")).thenReturn(false);
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.register(new ProductRequest("TEA-1", "Tea", null, BigDecimal.ONE, 0, 0, null));
+
+        verify(movementRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRecordInMovementOnRestock() {
+        when(productRepository.findById(1L)).thenReturn(Optional.of(coffee));
+        when(movementRepository.save(any(StockMovement.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ProductResponse response = service.restock(1L, new RestockRequest(5));
+
+        assertThat(response.quantity()).isEqualTo(15);
+        ArgumentCaptor<StockMovement> captor = ArgumentCaptor.forClass(StockMovement.class);
+        verify(movementRepository).save(captor.capture());
+        assertThat(captor.getValue().getType()).isEqualTo(MovementType.IN);
+        assertThat(captor.getValue().getBalanceAfter()).isEqualTo(15);
     }
 }
