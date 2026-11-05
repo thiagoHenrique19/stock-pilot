@@ -14,7 +14,7 @@ import java.math.BigDecimal;
 import java.util.Locale;
 
 @Entity
-public class Product {
+public class Product extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
