@@ -133,6 +133,6 @@ class ReportControllerTest {
         mockMvc.perform(get("/api/reports/top-products")
                         .param("from", "2026-11-01").param("to", "2026-11-30").param("limit", "500"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Limit must be between 1 and 100"));
+                .andExpect(jsonPath("$.detail").value("Limit must be between 1 and 100"));
     }
 }

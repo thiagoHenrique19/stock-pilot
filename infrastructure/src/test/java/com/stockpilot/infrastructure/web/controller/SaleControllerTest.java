@@ -101,7 +101,7 @@ class SaleControllerTest {
 
         mockMvc.perform(post("/api/sales/7/cancel"))
                 .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.message").value("Sale SALE-000007 is already cancelled"));
+                .andExpect(jsonPath("$.detail").value("Sale SALE-000007 is already cancelled"));
     }
 
     @Test
