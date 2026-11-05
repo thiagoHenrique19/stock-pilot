@@ -9,3 +9,19 @@ spring:
     hibernate:
       ddl-auto: validate
     open-in-view: false
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  info:
+    env:
+      enabled: true
+info:
+  app:
+    name: stock-pilot
+    description: Inventory and point of sale for small businesses
