@@ -41,8 +41,8 @@ public class SaleService implements CheckoutSaleUseCase {
         for (SaleItemRequest item : request.items()) {
             Product product = productRepository.findById(item.productId())
                     .orElseThrow(() -> new ResourceNotFoundException("Product", item.productId()));
-            product.removeStock(item.quantity());
             sale.addItem(product, item.quantity());
+            product.removeStock(item.quantity());
             notifyIfLowStock(product);
         }
         sale.applyDiscount(DiscountPolicyFactory.fromPercentage(request.discountPercentage()));

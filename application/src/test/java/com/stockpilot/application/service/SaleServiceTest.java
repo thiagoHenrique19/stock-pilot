@@ -93,6 +93,18 @@ class SaleServiceTest {
     }
 
     @Test
+    void shouldRejectInactiveProduct() {
+        coffee.deactivate();
+        when(productRepository.findById(1L)).thenReturn(Optional.of(coffee));
+
+        assertThatThrownBy(() -> saleService.checkout(requestFor(1, null)))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("inactive");
+        assertThat(coffee.getQuantity()).isEqualTo(10);
+        verify(saleRepository, never()).save(any());
+    }
+
+    @Test
     void shouldFailWhenProductDoesNotExist() {
         when(productRepository.findById(1L)).thenReturn(Optional.empty());
 
