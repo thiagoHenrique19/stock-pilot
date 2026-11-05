@@ -111,6 +111,17 @@ public class Product {
         quantity -= amount;
     }
 
+    public void adjustStock(int delta) {
+        if (delta == 0) {
+            throw new BusinessRuleException("Adjustment must not be zero");
+        }
+        if (quantity + delta < 0) {
+            throw new BusinessRuleException("Adjustment would take stock below zero for " + name
+                    + ": current " + quantity + ", adjustment " + delta);
+        }
+        quantity += delta;
+    }
+
     public boolean isLowStock() {
         return quantity <= minimumQuantity;
     }

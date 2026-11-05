@@ -116,4 +116,29 @@ class ProductTest {
         assertThatThrownBy(() -> product.update("X", null, BigDecimal.ONE, -1, null))
                 .isInstanceOf(BusinessRuleException.class);
     }
+
+    @Test
+    void shouldAdjustStockUpAndDown() {
+        Product product = product(10, 2);
+
+        product.adjustStock(5);
+        assertThat(product.getQuantity()).isEqualTo(15);
+        product.adjustStock(-15);
+        assertThat(product.getQuantity()).isZero();
+    }
+
+    @Test
+    void shouldNeverAdjustBelowZero() {
+        Product product = product(3, 1);
+
+        assertThatThrownBy(() -> product.adjustStock(-4))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("below zero");
+        assertThat(product.getQuantity()).isEqualTo(3);
+    }
+
+    @Test
+    void shouldRejectZeroAdjustment() {
+        assertThatThrownBy(() -> product(3, 1).adjustStock(0)).isInstanceOf(BusinessRuleException.class);
+    }
 }
