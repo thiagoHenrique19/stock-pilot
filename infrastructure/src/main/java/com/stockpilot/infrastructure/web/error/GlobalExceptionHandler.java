@@ -1,5 +1,6 @@
 package com.stockpilot.infrastructure.web.error;
 
+import com.stockpilot.core.exception.AuthenticationFailedException;
 import com.stockpilot.core.exception.BusinessRuleException;
 import com.stockpilot.core.exception.InvalidRequestException;
 import com.stockpilot.core.exception.ResourceNotFoundException;
@@ -43,6 +44,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(InvalidRequestException.class)
     public ResponseEntity<Object> handleInvalidRequest(InvalidRequestException exception, WebRequest request) {
         return problem(HttpStatus.BAD_REQUEST, "invalid-request", exception.getMessage(), exception, request);
+    }
+
+    @ExceptionHandler(AuthenticationFailedException.class)
+    public ResponseEntity<Object> handleAuthenticationFailed(AuthenticationFailedException exception,
+                                                            WebRequest request) {
+        return problem(HttpStatus.UNAUTHORIZED, "invalid-credentials", exception.getMessage(), exception, request);
     }
 
     @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
