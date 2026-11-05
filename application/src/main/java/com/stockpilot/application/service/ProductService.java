@@ -1,6 +1,7 @@
 package com.stockpilot.application.service;
 
 import com.stockpilot.application.mapper.ProductMapper;
+import com.stockpilot.core.domain.AuditEntry;
 import com.stockpilot.core.domain.Category;
 import com.stockpilot.core.domain.MovementType;
 import com.stockpilot.core.domain.Product;
@@ -11,11 +12,15 @@ import com.stockpilot.core.port.in.dto.ProductRequest;
 import com.stockpilot.core.port.in.dto.ProductResponse;
 import com.stockpilot.core.port.in.dto.ProductUpdateRequest;
 import com.stockpilot.core.port.in.dto.RestockRequest;
+import com.stockpilot.core.port.out.AuditLogRepository;
 import com.stockpilot.core.port.out.CategoryRepository;
+import com.stockpilot.core.port.out.CurrentUserProvider;
 import com.stockpilot.core.port.out.ProductRepository;
 import com.stockpilot.core.query.PageQuery;
 import com.stockpilot.core.query.PageResult;
 import com.stockpilot.core.query.ProductSearchCriteria;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,11 +32,17 @@ public class ProductService implements ManageProductsUseCase {
     private final CategoryRepository categoryRepository;
     private final StockLedger stockLedger;
     private final ProductMapper productMapper;
+    private final AuditLogRepository auditLog;
+    private final CurrentUserProvider currentUser;
 
     public ProductService(ProductRepository productRepository,
                           CategoryRepository categoryRepository,
                           StockLedger stockLedger,
-                          ProductMapper productMapper) {
+                          ProductMapper productMapper,
+                          AuditLogRepository auditLog,
+                          CurrentUserProvider currentUser) {
+        this.auditLog = auditLog;
+        this.currentUser = currentUser;
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
         this.stockLedger = stockLedger;
@@ -57,8 +68,13 @@ public class ProductService implements ManageProductsUseCase {
     @Transactional
     public ProductResponse update(Long id, ProductUpdateRequest request) {
         Product product = getProduct(id);
+        BigDecimal oldPrice = product.getPrice();
         product.update(request.name(), request.description(), request.price(),
                 request.minimumQuantity(), resolveCategory(request.categoryId()));
+        if (oldPrice.compareTo(product.getPrice()) != 0) {
+            audit(product, "price", oldPrice.setScale(2, RoundingMode.HALF_UP).toPlainString(),
+                    product.getPrice().setScale(2, RoundingMode.HALF_UP).toPlainString());
+        }
         return productMapper.toResponse(product);
     }
 
@@ -104,6 +120,11 @@ public class ProductService implements ManageProductsUseCase {
     @Transactional(readOnly = true)
     public List<ProductResponse> listLowStock() {
         return productRepository.findLowStock().stream().map(productMapper::toResponse).toList();
+    }
+
+    private void audit(Product product, String field, Object oldValue, Object newValue) {
+        auditLog.save(AuditEntry.record("Product", product.getId(), field, oldValue, newValue,
+                currentUser.currentUserOrSystem()));
     }
 
     private Product getProduct(Long id) {

@@ -3,6 +3,7 @@ package com.stockpilot.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -10,7 +11,12 @@ import static org.mockito.Mockito.when;
 import com.stockpilot.application.mapper.ProductMapper;
 import com.stockpilot.core.domain.Category;
 import com.stockpilot.core.domain.Product;
+import com.stockpilot.core.domain.AuditEntry;
 import com.stockpilot.core.exception.BusinessRuleException;
+import com.stockpilot.core.port.out.AuditLogRepository;
+import com.stockpilot.core.port.out.CurrentUserProvider;
+import com.stockpilot.application.support.ProductFixtures;
+import org.mockito.ArgumentCaptor;
 import com.stockpilot.core.exception.ResourceNotFoundException;
 import com.stockpilot.core.port.in.dto.ProductRequest;
 import com.stockpilot.core.port.in.dto.ProductResponse;
@@ -42,6 +48,8 @@ class ProductServiceTest {
     @Mock private CategoryRepository categoryRepository;
     @Mock private StockMovementRepository movementRepository;
     @Mock private DomainEventPublisher eventPublisher;
+    @Mock private AuditLogRepository auditLog;
+    @Mock private CurrentUserProvider currentUser;
 
     private ProductService service;
     private Product coffee;
@@ -49,8 +57,10 @@ class ProductServiceTest {
     @BeforeEach
     void setUp() {
         service = new ProductService(productRepository, categoryRepository,
-                new StockLedger(movementRepository, eventPublisher), new ProductMapper());
+                new StockLedger(movementRepository, eventPublisher), new ProductMapper(), auditLog, currentUser);
         coffee = Product.create("C-1", "Coffee", new BigDecimal("20.00"), 10, 3);
+        ProductFixtures.setId(coffee, 1L);
+        lenient().when(currentUser.currentUserOrSystem()).thenReturn("alice@shop.com");
     }
 
     @Test
@@ -184,5 +194,50 @@ class ProductServiceTest {
         assertThatThrownBy(() -> service.restock(1L, new RestockRequest(0)))
                 .isInstanceOf(BusinessRuleException.class);
         verify(movementRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldAuditAPriceChangeWithOldAndNewValueAndUser() {
+        when(productRepository.findById(1L)).thenReturn(Optional.of(coffee));
+
+        service.update(1L, new ProductUpdateRequest("Coffee", null, new BigDecimal("25.5"), 3, null));
+
+        ArgumentCaptor<AuditEntry> captor = ArgumentCaptor.forClass(AuditEntry.class);
+        verify(auditLog).save(captor.capture());
+        AuditEntry entry = captor.getValue();
+        assertThat(entry.getEntityType()).isEqualTo("Product");
+        assertThat(entry.getEntityId()).isEqualTo(1L);
+        assertThat(entry.getField()).isEqualTo("price");
+        assertThat(entry.getOldValue()).isEqualTo("20.00");
+        assertThat(entry.getNewValue()).isEqualTo("25.50");
+        assertThat(entry.getChangedBy()).isEqualTo("alice@shop.com");
+    }
+
+    @Test
+    void shouldNotAuditWhenOnlyTheNameChanges() {
+        when(productRepository.findById(1L)).thenReturn(Optional.of(coffee));
+
+        service.update(1L, new ProductUpdateRequest("Coffee XL", null, new BigDecimal("20.00"), 3, null));
+
+        verify(auditLog, never()).save(any());
+    }
+
+    @Test
+    void shouldNotAuditAPriceThatOnlyDiffersInScale() {
+        when(productRepository.findById(1L)).thenReturn(Optional.of(coffee));
+
+        service.update(1L, new ProductUpdateRequest("Coffee", null, new BigDecimal("20.0"), 3, null));
+
+        verify(auditLog, never()).save(any());
+    }
+
+    @Test
+    void shouldNotAuditWhenTheUpdateIsRejected() {
+        when(productRepository.findById(1L)).thenReturn(Optional.of(coffee));
+
+        assertThatThrownBy(() -> service.update(1L, new ProductUpdateRequest("Coffee", null, new BigDecimal("-1"), 3, null)))
+                .isInstanceOf(BusinessRuleException.class);
+
+        verify(auditLog, never()).save(any());
     }
 }
