@@ -47,4 +47,20 @@ class ReportServiceTest {
         assertThat(report.salesCount()).isZero();
         assertThat(report.averageTicket()).isEqualByComparingTo("0");
     }
+
+    @Test
+    void shouldIgnoreCancelledSales() {
+        Product coffee = Product.create("C-1", "Coffee", new BigDecimal("20.00"), 100, 3);
+        Sale completed = Sale.open(PaymentMethod.CASH);
+        completed.addItem(coffee, 1);
+        Sale cancelled = Sale.open(PaymentMethod.PIX);
+        cancelled.addItem(coffee, 5);
+        cancelled.cancel();
+        when(saleRepository.findByCreatedAtBetween(any(), any())).thenReturn(List.of(completed, cancelled));
+
+        DailySalesReport report = new ReportService(saleRepository).dailySummary(LocalDate.of(2026, 11, 5));
+
+        assertThat(report.salesCount()).isEqualTo(1);
+        assertThat(report.revenue()).isEqualByComparingTo("20.00");
+    }
 }
