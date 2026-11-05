@@ -8,6 +8,7 @@ import com.stockpilot.core.domain.SaleItem;
 import com.stockpilot.core.exception.ResourceNotFoundException;
 import com.stockpilot.core.port.in.ManageSalesUseCase;
 import com.stockpilot.core.port.in.dto.SaleResponse;
+import com.stockpilot.core.port.out.ProductRepository;
 import com.stockpilot.core.port.out.SaleRepository;
 import com.stockpilot.core.query.PageQuery;
 import com.stockpilot.core.query.PageResult;
@@ -22,11 +23,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class SaleManagementService implements ManageSalesUseCase {
 
     private final SaleRepository saleRepository;
+    private final ProductRepository productRepository;
     private final StockLedger stockLedger;
     private final SaleMapper saleMapper;
 
-    public SaleManagementService(SaleRepository saleRepository, StockLedger stockLedger, SaleMapper saleMapper) {
+    public SaleManagementService(SaleRepository saleRepository, ProductRepository productRepository,
+                                 StockLedger stockLedger, SaleMapper saleMapper) {
         this.saleRepository = saleRepository;
+        this.productRepository = productRepository;
         this.stockLedger = stockLedger;
         this.saleMapper = saleMapper;
     }
@@ -52,6 +56,8 @@ public class SaleManagementService implements ManageSalesUseCase {
     public SaleResponse cancel(Long id) {
         Sale sale = getSale(id);
         sale.cancel();
+        productRepository.findAllByIdForUpdate(sale.getItems().stream()
+                .map(item -> item.getProduct().getId()).distinct().sorted().toList());
         for (SaleItem item : sale.getItems()) {
             Product product = item.getProduct();
             product.addStock(item.getQuantity());
