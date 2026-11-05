@@ -5,8 +5,12 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import java.math.BigDecimal;
+import java.util.Locale;
 
 @Entity
 public class Product {
@@ -20,6 +24,14 @@ public class Product {
 
     private String name;
 
+    private String description;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id")
+    private Category category;
+
+    private boolean active = true;
+
     @Column(precision = 19, scale = 2)
     private BigDecimal price;
 
@@ -29,22 +41,60 @@ public class Product {
     protected Product() {
     }
 
-    private Product(String sku, String name, BigDecimal price, int quantity, int minimumQuantity) {
-        this.sku = sku;
+    private Product(String sku, String name, String description, BigDecimal price, int quantity,
+                    int minimumQuantity, Category category) {
+        this.sku = normalizeSku(sku);
         this.name = name;
+        this.description = description;
+        this.category = category;
         this.price = price;
         this.quantity = quantity;
         this.minimumQuantity = minimumQuantity;
     }
 
     public static Product create(String sku, String name, BigDecimal price, int quantity, int minimumQuantity) {
+        return create(sku, name, null, price, quantity, minimumQuantity, null);
+    }
+
+    public static Product create(String sku, String name, String description, BigDecimal price, int quantity,
+                                 int minimumQuantity, Category category) {
+        requireValidPrice(price);
+        requireValidQuantities(quantity, minimumQuantity);
+        return new Product(sku, name, description, price, quantity, minimumQuantity, category);
+    }
+
+    public static String normalizeSku(String sku) {
+        return sku.trim().toUpperCase(Locale.ROOT);
+    }
+
+    public void update(String name, String description, BigDecimal price, int minimumQuantity, Category category) {
+        requireValidPrice(price);
+        requireValidQuantities(0, minimumQuantity);
+        this.name = name;
+        this.description = description;
+        this.price = price;
+        this.minimumQuantity = minimumQuantity;
+        this.category = category;
+    }
+
+    public void deactivate() {
+        active = false;
+    }
+
+    public void reactivate() {
+        active = true;
+    }
+
+    private static void requireValidPrice(BigDecimal price) {
         if (price == null || price.signum() < 0) {
             throw new BusinessRuleException("Price cannot be negative");
         }
+    }
+
+    private static void requireValidQuantities(int quantity, int minimumQuantity) {
         if (quantity < 0 || minimumQuantity < 0) {
             throw new BusinessRuleException("Quantities cannot be negative");
         }
-        return new Product(sku, name, price, quantity, minimumQuantity);
     }
 
     public void addStock(int amount) {
@@ -59,6 +109,17 @@ public class Product {
                     + ", available " + quantity);
         }
         quantity -= amount;
+    }
+
+    public void adjustStock(int delta) {
+        if (delta == 0) {
+            throw new BusinessRuleException("Adjustment must not be zero");
+        }
+        if (quantity + delta < 0) {
+            throw new BusinessRuleException("Adjustment would take stock below zero for " + name
+                    + ": current " + quantity + ", adjustment " + delta);
+        }
+        quantity += delta;
     }
 
     public boolean isLowStock() {
@@ -81,6 +142,18 @@ public class Product {
 
     public String getName() {
         return name;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public Category getCategory() {
+        return category;
+    }
+
+    public boolean isActive() {
+        return active;
     }
 
     public BigDecimal getPrice() {

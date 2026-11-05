@@ -1,26 +1,79 @@
 package com.stockpilot.infrastructure.web.controller;
 
+import com.stockpilot.core.port.in.GenerateAnalyticsReportsUseCase;
+import com.stockpilot.core.port.in.dto.CategoryStockValuation;
 import com.stockpilot.core.port.in.dto.DailySalesReport;
+import com.stockpilot.core.port.in.dto.LowStockItem;
+import com.stockpilot.core.port.in.dto.PaymentMethodRevenue;
+import com.stockpilot.core.port.in.dto.PeriodRevenue;
+import com.stockpilot.core.port.in.dto.TopSellingProduct;
+import com.stockpilot.core.query.TimeGranularity;
 import com.stockpilot.core.port.in.GenerateSalesReportUseCase;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.LocalDate;
+import java.util.List;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+@Tag(name = "Reports")
 @RestController
 @RequestMapping("/api/reports")
 public class ReportController {
 
     private final GenerateSalesReportUseCase reportService;
+    private final GenerateAnalyticsReportsUseCase analyticsService;
 
-    public ReportController(GenerateSalesReportUseCase reportService) {
+    public ReportController(GenerateSalesReportUseCase reportService,
+                            GenerateAnalyticsReportsUseCase analyticsService) {
         this.reportService = reportService;
+        this.analyticsService = analyticsService;
     }
 
+    @Operation(summary = "Daily sales summary")
     @GetMapping("/daily")
     public DailySalesReport daily(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return reportService.dailySummary(date);
+    }
+
+    @Operation(summary = "Top selling products in a period")
+    @GetMapping("/top-products")
+    public List<TopSellingProduct> topProducts(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(defaultValue = "10") int limit) {
+        return analyticsService.topSellingProducts(from, to, limit);
+    }
+
+    @Operation(summary = "Revenue grouped by payment method in a period")
+    @GetMapping("/revenue-by-payment-method")
+    public List<PaymentMethodRevenue> revenueByPaymentMethod(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return analyticsService.revenueByPaymentMethod(from, to);
+    }
+
+    @Operation(summary = "Revenue grouped by day, week or month with cumulative totals")
+    @GetMapping("/revenue")
+    public List<PeriodRevenue> revenueByPeriod(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(defaultValue = "DAY") TimeGranularity granularity) {
+        return analyticsService.revenueByPeriod(from, to, granularity);
+    }
+
+    @Operation(summary = "Stock value (price x quantity) per category")
+    @GetMapping("/stock-valuation")
+    public List<CategoryStockValuation> stockValuation() {
+        return analyticsService.stockValuation();
+    }
+
+    @Operation(summary = "Active products at or below their minimum stock, with shortfall")
+    @GetMapping("/low-stock")
+    public List<LowStockItem> lowStock() {
+        return analyticsService.lowStock();
     }
 }

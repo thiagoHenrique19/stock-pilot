@@ -26,8 +26,9 @@ public class ReportService implements GenerateSalesReportUseCase {
     public DailySalesReport dailySummary(LocalDate date) {
         ZoneId zone = ZoneId.systemDefault();
         List<Sale> sales = saleRepository.findByCreatedAtBetween(
-                date.atStartOfDay(zone).toInstant(),
-                date.plusDays(1).atStartOfDay(zone).toInstant());
+                        date.atStartOfDay(zone).toInstant(),
+                        date.plusDays(1).atStartOfDay(zone).toInstant())
+                .stream().filter(sale -> !sale.isCancelled()).toList();
         BigDecimal revenue = sales.stream().map(Sale::getTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal average = sales.isEmpty()
                 ? BigDecimal.ZERO

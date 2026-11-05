@@ -7,12 +7,13 @@ import com.stockpilot.core.port.in.dto.SaleResponse;
 import com.stockpilot.application.mapper.SaleMapper;
 import com.stockpilot.core.discount.DiscountPolicyFactory;
 import com.stockpilot.core.domain.Product;
+import com.stockpilot.core.domain.MovementType;
 import com.stockpilot.core.domain.Sale;
-import com.stockpilot.core.event.LowStockEvent;
+import com.stockpilot.core.domain.SaleItem;
 import com.stockpilot.core.exception.ResourceNotFoundException;
 import com.stockpilot.core.port.out.ProductRepository;
+import com.stockpilot.core.port.out.ReceiptNumberGenerator;
 import com.stockpilot.core.port.out.SaleRepository;
-import com.stockpilot.core.port.out.DomainEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,37 +23,38 @@ public class SaleService implements CheckoutSaleUseCase {
     private final ProductRepository productRepository;
     private final SaleRepository saleRepository;
     private final SaleMapper saleMapper;
-    private final DomainEventPublisher eventPublisher;
+    private final StockLedger stockLedger;
+    private final ReceiptNumberGenerator receiptNumberGenerator;
 
     public SaleService(ProductRepository productRepository,
                        SaleRepository saleRepository,
                        SaleMapper saleMapper,
-                       DomainEventPublisher eventPublisher) {
+                       StockLedger stockLedger,
+                       ReceiptNumberGenerator receiptNumberGenerator) {
         this.productRepository = productRepository;
         this.saleRepository = saleRepository;
         this.saleMapper = saleMapper;
-        this.eventPublisher = eventPublisher;
+        this.stockLedger = stockLedger;
+        this.receiptNumberGenerator = receiptNumberGenerator;
     }
 
     @Override
     @Transactional
     public SaleResponse checkout(SaleRequest request) {
-        Sale sale = Sale.open(request.paymentMethod());
+        Sale sale = Sale.open(request.paymentMethod(), receiptNumberGenerator.next());
         for (SaleItemRequest item : request.items()) {
             Product product = productRepository.findById(item.productId())
                     .orElseThrow(() -> new ResourceNotFoundException("Product", item.productId()));
-            product.removeStock(item.quantity());
             sale.addItem(product, item.quantity());
-            notifyIfLowStock(product);
+            product.removeStock(item.quantity());
         }
-        sale.applyDiscount(DiscountPolicyFactory.fromPercentage(request.discountPercentage()));
-        return saleMapper.toResponse(saleRepository.save(sale));
-    }
-
-    private void notifyIfLowStock(Product product) {
-        if (product.isLowStock()) {
-            eventPublisher.publish(new LowStockEvent(product.getId(), product.getSku(),
-                    product.getName(), product.getQuantity(), product.getMinimumQuantity()));
+        sale.applyDiscount(DiscountPolicyFactory.create(request.discountPercentage(), request.discountAmount()));
+        sale.receivePayment(request.amountReceived());
+        Sale saved = saleRepository.save(sale);
+        String reference = saved.getReceiptNumber();
+        for (SaleItem item : saved.getItems()) {
+            stockLedger.record(item.getProduct(), MovementType.OUT, -item.getQuantity(), "Sale", reference);
         }
+        return saleMapper.toResponse(saved);
     }
 }
