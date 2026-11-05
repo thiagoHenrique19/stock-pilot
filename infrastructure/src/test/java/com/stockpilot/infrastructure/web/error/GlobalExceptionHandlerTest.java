@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.stockpilot.core.exception.BusinessRuleException;
 import com.stockpilot.core.exception.InvalidRequestException;
+import com.stockpilot.core.exception.RequestInProgressException;
 import com.stockpilot.core.exception.ResourceNotFoundException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
@@ -82,6 +83,14 @@ class GlobalExceptionHandlerTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.type").value("urn:stockpilot:problem:concurrent-update"))
                 .andExpect(jsonPath("$.detail").value("The resource was modified by another request, please retry"));
+    }
+
+    @Test
+    void shouldMapRequestInProgressToConflict() throws Exception {
+        mockMvc.perform(get("/fail/in-progress"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.type").value("urn:stockpilot:problem:request-in-progress"))
+                .andExpect(jsonPath("$.detail").value("Still processing"));
     }
 
     @Test
@@ -165,6 +174,11 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/lock-timeout")
         void lockTimeout() {
             throw new CannotAcquireLockException("could not obtain lock");
+        }
+
+        @GetMapping("/in-progress")
+        void inProgress() {
+            throw new RequestInProgressException("Still processing");
         }
 
         @GetMapping("/deadlock")

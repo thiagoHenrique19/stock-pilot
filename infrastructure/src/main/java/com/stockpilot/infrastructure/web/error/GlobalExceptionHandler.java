@@ -3,6 +3,7 @@ package com.stockpilot.infrastructure.web.error;
 import com.stockpilot.core.exception.AuthenticationFailedException;
 import com.stockpilot.core.exception.BusinessRuleException;
 import com.stockpilot.core.exception.InvalidRequestException;
+import com.stockpilot.core.exception.RequestInProgressException;
 import com.stockpilot.core.exception.ResourceNotFoundException;
 import com.stockpilot.infrastructure.web.filter.RequestIdFilter;
 import java.net.URI;
@@ -58,6 +59,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                                                         WebRequest request) {
         return problem(HttpStatus.CONFLICT, "concurrent-update",
                 "The resource was modified by another request, please retry", exception, request);
+    }
+
+    @ExceptionHandler(RequestInProgressException.class)
+    public ResponseEntity<Object> handleRequestInProgress(RequestInProgressException exception, WebRequest request) {
+        return problem(HttpStatus.CONFLICT, "request-in-progress", exception.getMessage(), exception, request);
     }
 
     @ExceptionHandler(Exception.class)
