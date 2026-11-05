@@ -11,6 +11,7 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -52,8 +53,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problem(HttpStatus.UNAUTHORIZED, "invalid-credentials", exception.getMessage(), exception, request);
     }
 
-    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
-    public ResponseEntity<Object> handleConcurrentUpdate(ObjectOptimisticLockingFailureException exception,
+    @ExceptionHandler({ObjectOptimisticLockingFailureException.class, PessimisticLockingFailureException.class})
+    public ResponseEntity<Object> handleConcurrentUpdate(Exception exception,
                                                         WebRequest request) {
         return problem(HttpStatus.CONFLICT, "concurrent-update",
                 "The resource was modified by another request, please retry", exception, request);
