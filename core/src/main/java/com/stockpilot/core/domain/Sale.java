@@ -24,7 +24,7 @@ public class Sale {
     private Long id;
 
     @OneToMany(cascade = CascadeType.ALL)
-    @JoinColumn(name = "sale_id")
+    @JoinColumn(name = "sale_id", nullable = false)
     private List<SaleItem> items = new ArrayList<>();
 
     @Enumerated(EnumType.STRING)
