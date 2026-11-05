@@ -4,6 +4,9 @@ import com.stockpilot.core.exception.BusinessRuleException;
 import com.stockpilot.core.exception.InvalidRequestException;
 import com.stockpilot.core.exception.ResourceNotFoundException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -25,6 +28,21 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidRequestException.class)
     public ResponseEntity<ApiError> handleInvalidRequest(InvalidRequestException exception) {
         return build(HttpStatus.BAD_REQUEST, exception.getMessage());
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ApiError> handleConcurrentUpdate(ObjectOptimisticLockingFailureException exception) {
+        return build(HttpStatus.CONFLICT, "The resource was modified by another request, please retry");
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiError> handleTypeMismatch(MethodArgumentTypeMismatchException exception) {
+        return build(HttpStatus.BAD_REQUEST, "Invalid value for parameter '" + exception.getName() + "'");
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiError> handleUnreadableBody(HttpMessageNotReadableException exception) {
+        return build(HttpStatus.BAD_REQUEST, "Malformed request body");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
