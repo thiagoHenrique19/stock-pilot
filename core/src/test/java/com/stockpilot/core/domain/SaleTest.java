@@ -1,8 +1,10 @@
 package com.stockpilot.core.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.stockpilot.core.discount.PercentageDiscountPolicy;
+import com.stockpilot.core.exception.BusinessRuleException;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 
@@ -31,5 +33,16 @@ class SaleTest {
 
         assertThat(sale.getDiscountAmount()).isEqualByComparingTo("10.00");
         assertThat(sale.getTotal()).isEqualByComparingTo("90.00");
+    }
+
+    @Test
+    void shouldRejectInactiveProducts() {
+        Product inactive = Product.create("I-1", "Old", new BigDecimal("1.00"), 5, 0);
+        inactive.deactivate();
+        Sale sale = Sale.open(PaymentMethod.CASH);
+
+        assertThatThrownBy(() -> sale.addItem(inactive, 1))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("inactive");
     }
 }

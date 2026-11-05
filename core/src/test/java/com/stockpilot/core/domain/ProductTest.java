@@ -62,4 +62,58 @@ class ProductTest {
         assertThatThrownBy(() -> Product.create("SKU-2", "Bad", new BigDecimal("-1"), 1, 1))
                 .isInstanceOf(BusinessRuleException.class);
     }
+
+    @Test
+    void shouldNormalizeSkuToUpperCase() {
+        Product product = Product.create(" abc-1 ", "Tea", new BigDecimal("3.00"), 1, 0);
+
+        assertThat(product.getSku()).isEqualTo("ABC-1");
+    }
+
+    @Test
+    void shouldStartActiveWithCategoryAndDescription() {
+        Category category = Category.create("Drinks", null);
+
+        Product product = Product.create("T-1", "Tea", "Green tea", new BigDecimal("3.00"), 1, 0, category);
+
+        assertThat(product.isActive()).isTrue();
+        assertThat(product.getCategory()).isSameAs(category);
+        assertThat(product.getDescription()).isEqualTo("Green tea");
+    }
+
+    @Test
+    void shouldDeactivateAndReactivate() {
+        Product product = product(5, 1);
+
+        product.deactivate();
+        assertThat(product.isActive()).isFalse();
+        product.reactivate();
+        assertThat(product.isActive()).isTrue();
+    }
+
+    @Test
+    void shouldUpdateDetailsKeepingSkuAndStock() {
+        Product product = product(5, 1);
+        Category category = Category.create("Drinks", null);
+
+        product.update("Coffee 1kg", "Strong", new BigDecimal("35.00"), 4, category);
+
+        assertThat(product.getName()).isEqualTo("Coffee 1kg");
+        assertThat(product.getDescription()).isEqualTo("Strong");
+        assertThat(product.getPrice()).isEqualByComparingTo("35.00");
+        assertThat(product.getMinimumQuantity()).isEqualTo(4);
+        assertThat(product.getCategory()).isSameAs(category);
+        assertThat(product.getSku()).isEqualTo("SKU-1");
+        assertThat(product.getQuantity()).isEqualTo(5);
+    }
+
+    @Test
+    void shouldRejectInvalidUpdate() {
+        Product product = product(5, 1);
+
+        assertThatThrownBy(() -> product.update("X", null, new BigDecimal("-1"), 1, null))
+                .isInstanceOf(BusinessRuleException.class);
+        assertThatThrownBy(() -> product.update("X", null, BigDecimal.ONE, -1, null))
+                .isInstanceOf(BusinessRuleException.class);
+    }
 }
