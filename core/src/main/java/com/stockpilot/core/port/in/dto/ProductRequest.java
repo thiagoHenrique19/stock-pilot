@@ -9,7 +9,9 @@ import java.math.BigDecimal;
 public record ProductRequest(
         @NotBlank String sku,
         @NotBlank String name,
+        String description,
         @NotNull @DecimalMin("0.00") BigDecimal price,
         @Min(0) int quantity,
-        @Min(0) int minimumQuantity) {
+        @Min(0) int minimumQuantity,
+        Long categoryId) {
 }
