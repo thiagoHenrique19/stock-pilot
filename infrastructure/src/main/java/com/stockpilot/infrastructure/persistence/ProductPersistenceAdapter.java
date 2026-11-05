@@ -5,6 +5,7 @@ import com.stockpilot.core.port.out.ProductRepository;
 import com.stockpilot.core.query.PageQuery;
 import com.stockpilot.core.query.PageResult;
 import com.stockpilot.core.query.ProductSearchCriteria;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -30,6 +31,14 @@ class ProductPersistenceAdapter implements ProductRepository {
     @Override
     public Optional<Product> findById(Long id) {
         return jpaRepository.findById(id);
+    }
+
+    @Override
+    public List<Product> findAllByIdForUpdate(Collection<Long> ids) {
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        return jpaRepository.lockAllByIdOrderById(ids);
     }
 
     @Override
