@@ -7,6 +7,7 @@ import com.stockpilot.core.port.in.AdjustStockUseCase;
 import com.stockpilot.core.port.in.AuthenticateUserUseCase;
 import com.stockpilot.core.port.in.CheckoutSaleUseCase;
 import com.stockpilot.core.port.in.GenerateAnalyticsReportsUseCase;
+import com.stockpilot.core.port.in.ExecuteIdempotentlyUseCase;
 import com.stockpilot.core.port.in.GenerateSalesReportUseCase;
 import com.stockpilot.core.port.in.ManageCategoriesUseCase;
 import com.stockpilot.core.port.in.ManageProductsUseCase;
@@ -46,6 +47,7 @@ class AuthorizationRulesTest {
     @MockBean private QueryStockMovementsUseCase movements;
     @MockBean private AuthenticateUserUseCase authentication;
     @MockBean private ManageUsersUseCase users;
+    @MockBean private ExecuteIdempotentlyUseCase idempotency;
 
     private static final String ANY_BODY = "{}";
 

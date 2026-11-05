@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -12,6 +13,7 @@ import com.stockpilot.core.domain.MovementType;
 import com.stockpilot.core.exception.BusinessRuleException;
 import com.stockpilot.core.exception.ResourceNotFoundException;
 import com.stockpilot.core.port.in.AdjustStockUseCase;
+import com.stockpilot.core.port.in.ExecuteIdempotentlyUseCase;
 import com.stockpilot.core.port.in.QueryStockMovementsUseCase;
 import com.stockpilot.core.port.in.dto.ProductResponse;
 import com.stockpilot.core.port.in.dto.StockMovementResponse;
@@ -36,6 +38,7 @@ class StockMovementControllerTest {
     @Autowired private MockMvc mockMvc;
     @MockBean private AdjustStockUseCase adjustStockUseCase;
     @MockBean private QueryStockMovementsUseCase queryMovementsUseCase;
+    @MockBean private ExecuteIdempotentlyUseCase idempotency;
 
     private final ProductResponse product = new ProductResponse(1L, "SKU-1", "Coffee", null, null, null,
             new BigDecimal("19.90"), 8, 3, false, true);
@@ -89,5 +92,18 @@ class StockMovementControllerTest {
                 .andExpect(jsonPath("$.content[0].type").value("IN"))
                 .andExpect(jsonPath("$.content[0].balanceAfter").value(10))
                 .andExpect(jsonPath("$.totalElements").value(1));
+    }
+
+    @Test
+    void shouldScopeTheAdjustmentKeyToTheProduct() throws Exception {
+        when(idempotency.execute(eq("stock.adjust:1"), eq("abc"), any(), eq(ProductResponse.class), any()))
+                .thenReturn(new ExecuteIdempotentlyUseCase.Result<>(product, true));
+
+        mockMvc.perform(post("/api/products/1/adjustments").header("Idempotency-Key", "abc")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"quantity\":-2,\"reason\":\"Damaged\"}"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Idempotent-Replayed", "true"))
+                .andExpect(jsonPath("$.quantity").value(8));
     }
 }

@@ -2,10 +2,13 @@ package com.stockpilot.infrastructure.web.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -14,6 +17,7 @@ import com.stockpilot.core.domain.SaleStatus;
 import com.stockpilot.core.exception.BusinessRuleException;
 import com.stockpilot.core.exception.ResourceNotFoundException;
 import com.stockpilot.core.port.in.CheckoutSaleUseCase;
+import com.stockpilot.core.port.in.ExecuteIdempotentlyUseCase;
 import com.stockpilot.core.port.in.ManageSalesUseCase;
 import com.stockpilot.core.port.in.dto.SaleResponse;
 import com.stockpilot.core.query.PageQuery;
@@ -42,6 +46,7 @@ class SaleControllerTest {
     @Autowired private MockMvc mockMvc;
     @MockBean private CheckoutSaleUseCase checkoutService;
     @MockBean private ManageSalesUseCase salesService;
+    @MockBean private ExecuteIdempotentlyUseCase idempotency;
 
     private final SaleResponse sale = new SaleResponse(7L, "SALE-000007", SaleStatus.COMPLETED, PaymentMethod.CASH,
             List.of(), new BigDecimal("40.00"), BigDecimal.ZERO, new BigDecimal("40.00"),
@@ -59,6 +64,51 @@ class SaleControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.receiptNumber").value("SALE-000007"))
                 .andExpect(jsonPath("$.change").value(10.0));
+    }
+
+    private static final String BODY = "{\"paymentMethod\":\"PIX\",\"items\":[{\"productId\":1,\"quantity\":2}]}";
+
+    @Test
+    void shouldNotTouchTheIdempotencyStoreWhenNoKeyIsSent() throws Exception {
+        when(checkoutService.checkout(any())).thenReturn(sale);
+
+        mockMvc.perform(post("/api/sales").contentType(MediaType.APPLICATION_JSON).content(BODY))
+                .andExpect(status().isCreated())
+                .andExpect(header().doesNotExist("Idempotent-Replayed"));
+
+        verifyNoInteractions(idempotency);
+    }
+
+    @Test
+    void shouldRunCheckoutThroughTheIdempotencyUseCaseWhenAKeyIsSent() throws Exception {
+        when(idempotency.execute(eq("sales.checkout"), eq("key-1"), any(), eq(SaleResponse.class), any()))
+                .thenReturn(new ExecuteIdempotentlyUseCase.Result<>(sale, false));
+
+        mockMvc.perform(post("/api/sales").header("Idempotency-Key", "key-1")
+                        .contentType(MediaType.APPLICATION_JSON).content(BODY))
+                .andExpect(status().isCreated())
+                .andExpect(header().doesNotExist("Idempotent-Replayed"))
+                .andExpect(jsonPath("$.receiptNumber").value("SALE-000007"));
+    }
+
+    @Test
+    void shouldFlagReplayedResponsesWithAHeader() throws Exception {
+        when(idempotency.execute(eq("sales.checkout"), eq("key-1"), any(), eq(SaleResponse.class), any()))
+                .thenReturn(new ExecuteIdempotentlyUseCase.Result<>(sale, true));
+
+        mockMvc.perform(post("/api/sales").header("Idempotency-Key", "key-1")
+                        .contentType(MediaType.APPLICATION_JSON).content(BODY))
+                .andExpect(status().isCreated())
+                .andExpect(header().string("Idempotent-Replayed", "true"));
+    }
+
+    @Test
+    void shouldValidateTheBodyBeforeLookingAtTheKey() throws Exception {
+        mockMvc.perform(post("/api/sales").header("Idempotency-Key", "key-1")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"paymentMethod\":\"PIX\",\"items\":[]}"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(idempotency);
     }
 
     @Test
