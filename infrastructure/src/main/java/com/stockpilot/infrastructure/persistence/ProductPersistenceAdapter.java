@@ -5,6 +5,8 @@ import com.stockpilot.core.port.out.ProductRepository;
 import com.stockpilot.core.query.PageQuery;
 import com.stockpilot.core.query.PageResult;
 import com.stockpilot.core.query.ProductSearchCriteria;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -18,9 +20,11 @@ class ProductPersistenceAdapter implements ProductRepository {
     private static final Set<String> SORTABLE_FIELDS = Set.of("id", "sku", "name", "price", "quantity");
 
     private final JpaProductRepository jpaRepository;
+    private final EntityManager entityManager;
 
-    ProductPersistenceAdapter(JpaProductRepository jpaRepository) {
+    ProductPersistenceAdapter(JpaProductRepository jpaRepository, EntityManager entityManager) {
         this.jpaRepository = jpaRepository;
+        this.entityManager = entityManager;
     }
 
     @Override
@@ -38,7 +42,11 @@ class ProductPersistenceAdapter implements ProductRepository {
         if (ids.isEmpty()) {
             return List.of();
         }
-        return jpaRepository.lockAllByIdOrderById(ids);
+        List<Product> locked = jpaRepository.lockAllByIdOrderById(ids);
+        // Hibernate keeps the state of entities that are already in the persistence context and
+        // only takes the row lock, so refresh to see what a concurrent commit changed.
+        locked.forEach(product -> entityManager.refresh(product, LockModeType.PESSIMISTIC_WRITE));
+        return locked;
     }
 
     @Override
