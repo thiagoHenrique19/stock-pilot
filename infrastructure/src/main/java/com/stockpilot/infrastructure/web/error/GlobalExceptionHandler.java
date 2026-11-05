@@ -1,6 +1,7 @@
 package com.stockpilot.infrastructure.web.error;
 
 import com.stockpilot.core.exception.BusinessRuleException;
+import com.stockpilot.core.exception.InvalidRequestException;
 import com.stockpilot.core.exception.ResourceNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +20,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessRuleException.class)
     public ResponseEntity<ApiError> handleBusinessRule(BusinessRuleException exception) {
         return build(HttpStatus.UNPROCESSABLE_ENTITY, exception.getMessage());
+    }
+
+    @ExceptionHandler(InvalidRequestException.class)
+    public ResponseEntity<ApiError> handleInvalidRequest(InvalidRequestException exception) {
+        return build(HttpStatus.BAD_REQUEST, exception.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

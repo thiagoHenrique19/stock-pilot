@@ -1,6 +1,7 @@
 package com.stockpilot.core.domain;
 
 import com.stockpilot.core.discount.DiscountPolicy;
+import com.stockpilot.core.exception.BusinessRuleException;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -47,6 +48,9 @@ public class Sale {
     }
 
     public void addItem(Product product, int quantity) {
+        if (!product.isActive()) {
+            throw new BusinessRuleException("Product " + product.getName() + " is inactive and cannot be sold");
+        }
         items.add(new SaleItem(product, quantity));
     }
 
