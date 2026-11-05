@@ -45,6 +45,16 @@ stock-pilot/
 ```
 Dependencies point inward: `infrastructure -> application -> core`. Each layer is its own Maven module, so the compiler enforces it. `core` only depends on `jakarta.persistence` and `jakarta.validation`. Controllers depend on use-case interfaces only. Pagination (`PageQuery` / `PageResult`) is framework independent and translated to Spring Data in the adapters.
 
+## Concurrency
+
+Two cashiers selling the last unit at the same time used to be a real problem: both read `quantity = 1`, both decrement, one of them overwrites the other. I handle it in two layers.
+
+Checkout, sale cancellation, restock and manual adjustments load the product with `SELECT ... FOR UPDATE` (`ProductRepository.findAllByIdForUpdate`). Rows are always locked in ascending id order, so two sales that list the same products in opposite order wait for each other instead of deadlocking. I picked pessimistic locking here because the contention is on a few hot rows and I would rather make the second request wait a few milliseconds than make the client retry. The wait is capped (`app.locking.timeout`, 5s by default) and a timeout or deadlock is answered with `409`.
+
+`Product` also has a `@Version` column. Anything that does not take the row lock (for example editing a product's name while a sale is running) can still not overwrite a newer row: Hibernate throws and the API answers `409 Conflict`.
+
+The tests in `infrastructure/src/test/java/com/stockpilot/concurrency` run real threads against PostgreSQL: 20 buyers racing for 5 units, opposite-order sales, and restocks mixed with sales while checking that the ledger balances still chain correctly.
+
 ## Run
 Requires Java 21 and Docker.
 
