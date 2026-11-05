@@ -1,0 +1,9 @@
+# Local development defaults. Never use these values outside a developer machine.
+security:
+  jwt:
+    secret: ${JWT_SECRET:local-development-only-secret-change-me-0123456789}
+
+app:
+  admin:
+    email: ${APP_ADMIN_EMAIL:admin@stockpilot.local}
+    password: ${APP_ADMIN_PASSWORD:admin12345}

@@ -10,6 +10,9 @@ import org.testcontainers.containers.PostgreSQLContainer;
 @AutoConfigureMockMvc
 public abstract class AbstractIntegrationTest {
 
+    public static final String ADMIN_EMAIL = "admin@stockpilot.test";
+    public static final String ADMIN_PASSWORD = "admin-password-123";
+
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
 
     static {
@@ -21,5 +24,8 @@ public abstract class AbstractIntegrationTest {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
+        registry.add("app.admin.email", () -> ADMIN_EMAIL);
+        registry.add("app.admin.password", () -> ADMIN_PASSWORD);
+        registry.add("security.jwt.secret", () -> "integration-test-secret-integration-test-secret");
     }
 }

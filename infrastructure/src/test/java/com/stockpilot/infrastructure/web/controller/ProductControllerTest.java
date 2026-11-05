@@ -18,15 +18,19 @@ import com.stockpilot.core.query.ProductSearchCriteria;
 import com.stockpilot.core.query.SortDirection;
 import java.math.BigDecimal;
 import java.util.List;
+import com.stockpilot.infrastructure.web.support.WithSecurityConfig;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(ProductController.class)
+@WithSecurityConfig
+@WithMockUser(roles = "ADMIN")
 class ProductControllerTest {
 
     @Autowired private MockMvc mockMvc;
