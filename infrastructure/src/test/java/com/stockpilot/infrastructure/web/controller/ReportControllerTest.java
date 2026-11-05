@@ -22,13 +22,17 @@ import com.stockpilot.core.query.TimeGranularity;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import com.stockpilot.infrastructure.web.support.WithSecurityConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(ReportController.class)
+@WithSecurityConfig
+@WithMockUser(roles = "ADMIN")
 class ReportControllerTest {
 
     @Autowired private MockMvc mockMvc;
