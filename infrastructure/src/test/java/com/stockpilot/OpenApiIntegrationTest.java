@@ -28,6 +28,12 @@ class OpenApiIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void shouldDescribeEveryOperationWithASummary() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(jsonPath("$.paths.*.*[?(!@.summary)]").isEmpty());
+    }
+
+    @Test
     void shouldServeSwaggerUi() throws Exception {
         mockMvc.perform(get("/swagger-ui.html")).andExpect(status().is3xxRedirection());
         mockMvc.perform(get("/swagger-ui/index.html")).andExpect(status().isOk());

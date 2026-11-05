@@ -9,6 +9,8 @@ import com.stockpilot.core.port.in.dto.PeriodRevenue;
 import com.stockpilot.core.port.in.dto.TopSellingProduct;
 import com.stockpilot.core.query.TimeGranularity;
 import com.stockpilot.core.port.in.GenerateSalesReportUseCase;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+@Tag(name = "Reports")
 @RestController
 @RequestMapping("/api/reports")
 public class ReportController {
@@ -30,11 +33,13 @@ public class ReportController {
         this.analyticsService = analyticsService;
     }
 
+    @Operation(summary = "Daily sales summary")
     @GetMapping("/daily")
     public DailySalesReport daily(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return reportService.dailySummary(date);
     }
 
+    @Operation(summary = "Top selling products in a period")
     @GetMapping("/top-products")
     public List<TopSellingProduct> topProducts(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
@@ -43,6 +48,7 @@ public class ReportController {
         return analyticsService.topSellingProducts(from, to, limit);
     }
 
+    @Operation(summary = "Revenue grouped by payment method in a period")
     @GetMapping("/revenue-by-payment-method")
     public List<PaymentMethodRevenue> revenueByPaymentMethod(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
@@ -50,6 +56,7 @@ public class ReportController {
         return analyticsService.revenueByPaymentMethod(from, to);
     }
 
+    @Operation(summary = "Revenue grouped by day, week or month with cumulative totals")
     @GetMapping("/revenue")
     public List<PeriodRevenue> revenueByPeriod(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
@@ -58,11 +65,13 @@ public class ReportController {
         return analyticsService.revenueByPeriod(from, to, granularity);
     }
 
+    @Operation(summary = "Stock value (price x quantity) per category")
     @GetMapping("/stock-valuation")
     public List<CategoryStockValuation> stockValuation() {
         return analyticsService.stockValuation();
     }
 
+    @Operation(summary = "Active products at or below their minimum stock, with shortfall")
     @GetMapping("/low-stock")
     public List<LowStockItem> lowStock() {
         return analyticsService.lowStock();

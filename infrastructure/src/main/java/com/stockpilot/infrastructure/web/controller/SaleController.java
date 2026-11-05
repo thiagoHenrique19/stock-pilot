@@ -9,6 +9,8 @@ import com.stockpilot.core.port.in.dto.SaleResponse;
 import com.stockpilot.core.query.PageQuery;
 import com.stockpilot.core.query.PageResult;
 import com.stockpilot.core.query.SaleSearchCriteria;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -22,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+@Tag(name = "Sales")
 @RestController
 @RequestMapping("/api/sales")
 public class SaleController {
@@ -34,17 +37,20 @@ public class SaleController {
         this.salesService = salesService;
     }
 
+    @Operation(summary = "Register a sale. Accepts discountPercentage or discountAmount (not both) and amountReceived for cash")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public SaleResponse checkout(@Valid @RequestBody SaleRequest request) {
         return checkoutService.checkout(request);
     }
 
+    @Operation(summary = "Get a sale by id")
     @GetMapping("/{id}")
     public SaleResponse findById(@PathVariable Long id) {
         return salesService.findById(id);
     }
 
+    @Operation(summary = "Search sales by date range, payment method and status with pagination")
     @GetMapping
     public PageResult<SaleResponse> search(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
@@ -59,6 +65,7 @@ public class SaleController {
                 PageQuery.of(page, size, sortBy, direction));
     }
 
+    @Operation(summary = "Cancel a sale and restore its stock; a sale can only be cancelled once")
     @PostMapping("/{id}/cancel")
     public SaleResponse cancel(@PathVariable Long id) {
         return salesService.cancel(id);
