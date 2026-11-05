@@ -48,6 +48,9 @@ public class Sale {
 
     private Instant createdAt = Instant.now();
 
+    @Column(name = "created_by", updatable = false)
+    private String createdBy;
+
     private Instant cancelledAt;
 
     @Version
@@ -145,6 +148,10 @@ public class Sale {
 
     public BigDecimal getChange() {
         return change;
+    }
+
+    public String getCreatedBy() {
+        return createdBy;
     }
 
     public Instant getCreatedAt() {

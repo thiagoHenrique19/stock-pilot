@@ -42,6 +42,9 @@ public class StockMovement {
 
     private Instant createdAt = Instant.now();
 
+    @Column(name = "created_by", updatable = false)
+    private String createdBy;
+
     protected StockMovement() {
     }
 
@@ -94,6 +97,10 @@ public class StockMovement {
 
     public int getBalanceAfter() {
         return balanceAfter;
+    }
+
+    public String getCreatedBy() {
+        return createdBy;
     }
 
     public Instant getCreatedAt() {
