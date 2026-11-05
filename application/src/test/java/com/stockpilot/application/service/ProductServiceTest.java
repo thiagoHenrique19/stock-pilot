@@ -156,7 +156,7 @@ class ProductServiceTest {
 
     @Test
     void shouldRecordInMovementOnRestock() {
-        when(productRepository.findById(1L)).thenReturn(Optional.of(coffee));
+        when(productRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(coffee));
         when(movementRepository.save(any(StockMovement.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ProductResponse response = service.restock(1L, new RestockRequest(5));
@@ -166,5 +166,23 @@ class ProductServiceTest {
         verify(movementRepository).save(captor.capture());
         assertThat(captor.getValue().getType()).isEqualTo(MovementType.IN);
         assertThat(captor.getValue().getBalanceAfter()).isEqualTo(15);
+    }
+
+    @Test
+    void shouldFailToRestockUnknownProduct() {
+        when(productRepository.findByIdForUpdate(1L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.restock(1L, new RestockRequest(5)))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verify(movementRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectNonPositiveRestockWithoutRecordingMovement() {
+        when(productRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(coffee));
+
+        assertThatThrownBy(() -> service.restock(1L, new RestockRequest(0)))
+                .isInstanceOf(BusinessRuleException.class);
+        verify(movementRepository, never()).save(any());
     }
 }

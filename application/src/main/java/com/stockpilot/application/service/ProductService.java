@@ -81,7 +81,8 @@ public class ProductService implements ManageProductsUseCase {
     @Override
     @Transactional
     public ProductResponse restock(Long id, RestockRequest request) {
-        Product product = getProduct(id);
+        Product product = productRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Product", id));
         product.addStock(request.quantity());
         stockLedger.record(product, MovementType.IN, request.quantity(), "Restock", null);
         return productMapper.toResponse(product);
