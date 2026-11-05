@@ -12,4 +12,7 @@ public interface IdempotencyStore {
 
     /** Stores the response and marks the key completed. Meant to run inside the business transaction. */
     void complete(String scope, String key, String responseSnapshot);
+
+    /** Frees a reservation that never completed so the client can retry the same key. Completed keys are kept. */
+    void release(String scope, String key);
 }

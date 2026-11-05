@@ -47,4 +47,10 @@ class JdbcIdempotencyStore implements IdempotencyStore {
                 WHERE scope = :scope AND key = :key
                 """, params(scope, key).addValue("snapshot", responseSnapshot));
     }
+
+    @Override
+    public void release(String scope, String key) {
+        jdbc.update("DELETE FROM idempotency_key WHERE scope = :scope AND key = :key AND status = 'IN_PROGRESS'",
+                params(scope, key));
+    }
 }
