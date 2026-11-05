@@ -6,7 +6,10 @@ import com.stockpilot.core.idempotency.RequestFingerprint;
 import com.stockpilot.core.port.in.ExecuteIdempotentlyUseCase;
 import com.stockpilot.core.port.out.IdempotencyStore;
 import com.stockpilot.core.port.out.PayloadCodec;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.function.Supplier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -16,8 +19,11 @@ public class IdempotencyService implements ExecuteIdempotentlyUseCase {
     private final IdempotencyStore store;
     private final PayloadCodec codec;
     private final TransactionTemplate transaction;
+    private final Duration staleAfter;
 
-    public IdempotencyService(IdempotencyStore store, PayloadCodec codec, TransactionTemplate transaction) {
+    public IdempotencyService(IdempotencyStore store, PayloadCodec codec, TransactionTemplate transaction,
+                              @Value("${app.idempotency.stale-after:2m}") Duration staleAfter) {
+        this.staleAfter = staleAfter;
         this.store = store;
         this.codec = codec;
         this.transaction = transaction;
@@ -36,6 +42,9 @@ public class IdempotencyService implements ExecuteIdempotentlyUseCase {
         }
         if (existing.isCompleted()) {
             return new Result<>(codec.read(existing.responseSnapshot(), responseType), true);
+        }
+        if (store.takeOverStale(scope, key, hash, Instant.now().minus(staleAfter))) {
+            return new Result<>(run(scope, key, action), false);
         }
         throw new RequestInProgressException("A request with this Idempotency-Key is still being processed");
     }

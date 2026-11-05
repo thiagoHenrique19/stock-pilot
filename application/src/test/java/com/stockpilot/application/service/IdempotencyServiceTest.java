@@ -15,6 +15,7 @@ import com.stockpilot.core.idempotency.RequestFingerprint;
 import com.stockpilot.core.port.in.ExecuteIdempotentlyUseCase.Result;
 import com.stockpilot.core.port.out.IdempotencyStore;
 import com.stockpilot.core.port.out.PayloadCodec;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -39,7 +40,8 @@ class IdempotencyServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new IdempotencyService(store, codec, new TransactionTemplate(transactionManager));
+        service = new IdempotencyService(store, codec, new TransactionTemplate(transactionManager),
+                Duration.ofMinutes(2));
         org.mockito.Mockito.lenient().when(transactionManager.getTransaction(any()))
                 .thenReturn(new SimpleTransactionStatus());
         org.mockito.Mockito.lenient().when(codec.write("request")).thenReturn("{\"request\":true}");
@@ -122,5 +124,20 @@ class IdempotencyServiceTest {
 
         assertThatThrownBy(() -> service.execute("sales", "k1", "request", String.class, this::run))
                 .isInstanceOf(RequestInProgressException.class);
+    }
+
+    @Test
+    void shouldTakeOverAReservationLeftBehindByACrashedRequest() {
+        Instant started = Instant.now().minusSeconds(600);
+        when(store.reserve("sales", "k1", hash())).thenReturn(false);
+        when(store.find("sales", "k1")).thenReturn(Optional.of(new IdempotencyRecord("sales", "k1", hash(),
+                IdempotencyRecord.Status.IN_PROGRESS, null, started)));
+        when(store.takeOverStale(eq("sales"), eq("k1"), eq(hash()), any(Instant.class))).thenReturn(true);
+
+        Result<String> result = service.execute("sales", "k1", "request", String.class, this::run);
+
+        assertThat(result.replayed()).isFalse();
+        assertThat(runs).hasValue(1);
+        verify(store).complete("sales", "k1", "{\"response\":true}");
     }
 }
