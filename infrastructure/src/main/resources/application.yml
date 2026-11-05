@@ -18,6 +18,8 @@ security:
     expiration: ${JWT_EXPIRATION:1h}
 
 app:
+  locking:
+    timeout: ${LOCK_TIMEOUT:5s}
   admin:
     email: ${APP_ADMIN_EMAIL:}
     password: ${APP_ADMIN_PASSWORD:}
