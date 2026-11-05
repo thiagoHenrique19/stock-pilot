@@ -7,10 +7,12 @@ import com.stockpilot.core.query.PageResult;
 import com.stockpilot.core.query.ProductSearchCriteria;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
+import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
@@ -21,8 +23,11 @@ class ProductPersistenceAdapter implements ProductRepository {
 
     private final JpaProductRepository jpaRepository;
     private final EntityManager entityManager;
+    private final Duration lockTimeout;
 
-    ProductPersistenceAdapter(JpaProductRepository jpaRepository, EntityManager entityManager) {
+    ProductPersistenceAdapter(JpaProductRepository jpaRepository, EntityManager entityManager,
+                              @Value("${app.locking.timeout:5s}") Duration lockTimeout) {
+        this.lockTimeout = lockTimeout;
         this.jpaRepository = jpaRepository;
         this.entityManager = entityManager;
     }
@@ -42,6 +47,8 @@ class ProductPersistenceAdapter implements ProductRepository {
         if (ids.isEmpty()) {
             return List.of();
         }
+        entityManager.createNativeQuery("select set_config('lock_timeout', ?1, true)")
+                .setParameter(1, lockTimeout.toMillis() + "ms").getSingleResult();
         List<Product> locked = jpaRepository.lockAllByIdOrderById(ids);
         // Hibernate keeps the state of entities that are already in the persistence context and
         // only takes the row lock, so refresh to see what a concurrent commit changed.
