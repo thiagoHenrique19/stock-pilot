@@ -7,14 +7,23 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.jayway.jsonpath.JsonPath;
 import java.time.LocalDate;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
 class StockPilotFlowIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired private MockMvc mockMvc;
+    @Autowired private JdbcTemplate jdbcTemplate;
+
+    @BeforeEach
+    void cleanSales() {
+        jdbcTemplate.execute("DELETE FROM sale_item");
+        jdbcTemplate.execute("DELETE FROM sale");
+    }
 
     private int createProduct(String sku, String name, String price, int quantity, int minimum) throws Exception {
         String body = mockMvc.perform(post("/api/products").contentType(MediaType.APPLICATION_JSON)
