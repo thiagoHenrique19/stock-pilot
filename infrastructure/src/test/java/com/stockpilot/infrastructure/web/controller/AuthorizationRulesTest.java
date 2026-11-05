@@ -13,6 +13,7 @@ import com.stockpilot.core.port.in.ManageCategoriesUseCase;
 import com.stockpilot.core.port.in.ManageProductsUseCase;
 import com.stockpilot.core.port.in.ManageSalesUseCase;
 import com.stockpilot.core.port.in.ManageUsersUseCase;
+import com.stockpilot.core.port.in.QueryProductHistoryUseCase;
 import com.stockpilot.core.port.in.QueryStockMovementsUseCase;
 import com.stockpilot.infrastructure.web.support.WithSecurityConfig;
 import java.util.stream.Stream;
@@ -48,6 +49,7 @@ class AuthorizationRulesTest {
     @MockBean private AuthenticateUserUseCase authentication;
     @MockBean private ManageUsersUseCase users;
     @MockBean private ExecuteIdempotentlyUseCase idempotency;
+    @MockBean private QueryProductHistoryUseCase history;
 
     private static final String ANY_BODY = "{}";
 
@@ -65,6 +67,7 @@ class AuthorizationRulesTest {
                 Arguments.of(HttpMethod.POST, "/api/products/1/restock", false),
                 Arguments.of(HttpMethod.POST, "/api/products/1/adjustments", false),
                 Arguments.of(HttpMethod.GET, "/api/products/1/movements", false),
+                Arguments.of(HttpMethod.GET, "/api/products/1/history", false),
                 Arguments.of(HttpMethod.GET, "/api/categories", false),
                 Arguments.of(HttpMethod.GET, "/api/categories/1", false),
                 Arguments.of(HttpMethod.POST, "/api/categories", false),
