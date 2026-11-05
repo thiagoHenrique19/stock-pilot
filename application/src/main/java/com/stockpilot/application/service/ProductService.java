@@ -2,6 +2,7 @@ package com.stockpilot.application.service;
 
 import com.stockpilot.application.mapper.ProductMapper;
 import com.stockpilot.core.domain.Category;
+import com.stockpilot.core.domain.MovementType;
 import com.stockpilot.core.domain.Product;
 import com.stockpilot.core.exception.BusinessRuleException;
 import com.stockpilot.core.exception.ResourceNotFoundException;
@@ -24,13 +25,16 @@ public class ProductService implements ManageProductsUseCase {
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
+    private final StockLedger stockLedger;
     private final ProductMapper productMapper;
 
     public ProductService(ProductRepository productRepository,
                           CategoryRepository categoryRepository,
+                          StockLedger stockLedger,
                           ProductMapper productMapper) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
+        this.stockLedger = stockLedger;
         this.productMapper = productMapper;
     }
 
@@ -42,7 +46,11 @@ public class ProductService implements ManageProductsUseCase {
             throw new BusinessRuleException("SKU already registered: " + sku);
         }
         Category category = resolveCategory(request.categoryId());
-        return productMapper.toResponse(productRepository.save(productMapper.toEntity(request, category)));
+        Product product = productRepository.save(productMapper.toEntity(request, category));
+        if (product.getQuantity() > 0) {
+            stockLedger.record(product, MovementType.IN, product.getQuantity(), "Initial stock", null);
+        }
+        return productMapper.toResponse(product);
     }
 
     @Override
@@ -75,6 +83,7 @@ public class ProductService implements ManageProductsUseCase {
     public ProductResponse restock(Long id, RestockRequest request) {
         Product product = getProduct(id);
         product.addStock(request.quantity());
+        stockLedger.record(product, MovementType.IN, request.quantity(), "Restock", null);
         return productMapper.toResponse(product);
     }
 
