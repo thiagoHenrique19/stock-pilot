@@ -8,6 +8,8 @@ import com.stockpilot.core.port.in.dto.RestockRequest;
 import com.stockpilot.core.query.PageQuery;
 import com.stockpilot.core.query.PageResult;
 import com.stockpilot.core.query.ProductSearchCriteria;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+@Tag(name = "Products")
 @RestController
 @RequestMapping("/api/products")
 public class ProductController {
@@ -31,37 +34,44 @@ public class ProductController {
         this.productService = productService;
     }
 
+    @Operation(summary = "Register a new product (SKU is normalised to upper case)")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ProductResponse register(@Valid @RequestBody ProductRequest request) {
         return productService.register(request);
     }
 
+    @Operation(summary = "Update product details, price, minimum stock and category")
     @PutMapping("/{id}")
     public ProductResponse update(@PathVariable Long id, @Valid @RequestBody ProductUpdateRequest request) {
         return productService.update(id, request);
     }
 
+    @Operation(summary = "Deactivate a product (soft delete); inactive products cannot be sold")
     @PostMapping("/{id}/deactivate")
     public ProductResponse deactivate(@PathVariable Long id) {
         return productService.deactivate(id);
     }
 
+    @Operation(summary = "Reactivate a previously deactivated product")
     @PostMapping("/{id}/reactivate")
     public ProductResponse reactivate(@PathVariable Long id) {
         return productService.reactivate(id);
     }
 
+    @Operation(summary = "Add units to the stock of a product")
     @PostMapping("/{id}/restock")
     public ProductResponse restock(@PathVariable Long id, @Valid @RequestBody RestockRequest request) {
         return productService.restock(id, request);
     }
 
+    @Operation(summary = "Get a product by id")
     @GetMapping("/{id}")
     public ProductResponse findById(@PathVariable Long id) {
         return productService.findById(id);
     }
 
+    @Operation(summary = "Search products with filters, pagination and sorting (sortBy: id, sku, name, price, quantity)")
     @GetMapping
     public PageResult<ProductResponse> search(
             @RequestParam(required = false) String name,
@@ -76,6 +86,7 @@ public class ProductController {
                 PageQuery.of(page, size, sortBy, direction));
     }
 
+    @Operation(summary = "List products at or below their minimum stock")
     @GetMapping("/low-stock")
     public List<ProductResponse> listLowStock() {
         return productService.listLowStock();
