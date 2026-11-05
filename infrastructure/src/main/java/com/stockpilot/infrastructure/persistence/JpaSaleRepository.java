@@ -1,0 +1,11 @@
+package com.stockpilot.infrastructure.persistence;
+
+import com.stockpilot.core.domain.Sale;
+import java.time.Instant;
+import java.util.List;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+interface JpaSaleRepository extends JpaRepository<Sale, Long> {
+
+    List<Sale> findByCreatedAtBetween(Instant start, Instant end);
+}
