@@ -2,6 +2,8 @@ package com.stockpilot.infrastructure.persistence;
 
 import com.stockpilot.core.idempotency.IdempotencyRecord;
 import com.stockpilot.core.port.out.IdempotencyStore;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.Optional;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -52,5 +54,14 @@ class JdbcIdempotencyStore implements IdempotencyStore {
     public void release(String scope, String key) {
         jdbc.update("DELETE FROM idempotency_key WHERE scope = :scope AND key = :key AND status = 'IN_PROGRESS'",
                 params(scope, key));
+    }
+
+    @Override
+    public boolean takeOverStale(String scope, String key, String requestHash, Instant cutoff) {
+        return jdbc.update("""
+                UPDATE idempotency_key SET request_hash = :hash, created_at = now()
+                WHERE scope = :scope AND key = :key AND status = 'IN_PROGRESS' AND created_at < :cutoff
+                """, params(scope, key).addValue("hash", requestHash)
+                .addValue("cutoff", Timestamp.from(cutoff))) == 1;
     }
 }

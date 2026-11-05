@@ -1,6 +1,7 @@
 package com.stockpilot.core.port.out;
 
 import com.stockpilot.core.idempotency.IdempotencyRecord;
+import java.time.Instant;
 import java.util.Optional;
 
 public interface IdempotencyStore {
@@ -15,4 +16,7 @@ public interface IdempotencyStore {
 
     /** Frees a reservation that never completed so the client can retry the same key. Completed keys are kept. */
     void release(String scope, String key);
+
+    /** Takes over a reservation that has been in progress since before the cutoff (the first caller probably died). */
+    boolean takeOverStale(String scope, String key, String requestHash, Instant cutoff);
 }

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.stockpilot.AbstractIntegrationTest;
 import com.stockpilot.core.idempotency.IdempotencyRecord;
 import com.stockpilot.core.port.out.IdempotencyStore;
+import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -81,5 +82,23 @@ class IdempotencyStoreIntegrationTest extends AbstractIntegrationTest {
         store.release("sales", key);
 
         assertThat(store.find("sales", key)).isPresent();
+    }
+
+    @Test
+    void shouldTakeOverOnlyReservationsOlderThanTheCutoff() {
+        String key = newKey();
+        store.reserve("sales", key, HASH);
+
+        assertThat(store.takeOverStale("sales", key, HASH, Instant.now().minusSeconds(60))).isFalse();
+        assertThat(store.takeOverStale("sales", key, HASH, Instant.now().plusSeconds(60))).isTrue();
+    }
+
+    @Test
+    void shouldNotTakeOverACompletedKeyEvenIfItIsOld() {
+        String key = newKey();
+        store.reserve("sales", key, HASH);
+        store.complete("sales", key, "{}");
+
+        assertThat(store.takeOverStale("sales", key, HASH, Instant.now().plusSeconds(60))).isFalse();
     }
 }
