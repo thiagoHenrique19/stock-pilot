@@ -66,6 +66,12 @@ The tests in `infrastructure/src/test/java/com/stockpilot/concurrency` run real 
 
 The key is claimed with an `INSERT ... ON CONFLICT DO NOTHING` on a primary key, so two simultaneous duplicates cannot both win. The response snapshot is written in the same transaction as the sale, which means either both exist or neither does. If a process dies after claiming a key, the claim is considered abandoned after `app.idempotency.stale-after` (2 minutes) and another request may take it over. Keys are scoped per operation (and per product for restock/adjust). I do not delete old keys yet; a cleanup job is on my list.
 
+## Auditing
+
+Products and categories have `created_at`, `updated_at`, `created_by` and `updated_by`. Sales and stock movements record who created them. The user comes from the security context through a small port (`CurrentUserProvider`), so `core` knows nothing about Spring Security. A Hibernate interceptor in infrastructure fills the columns by property name; anything that runs outside a request (the admin bootstrap, for instance) is recorded as `system`.
+
+Price and active/inactive changes also go to an `audit_log` table (field, old value, new value, who, when), and admins can read them at `GET /api/products/{id}/history`. I only audit those two fields on purpose; they are the ones that cause arguments at the counter. "Deleting" a product has always meant deactivating it, so the history is also the record of who turned a product off.
+
 ## Run
 Requires Java 21 and Docker.
 
