@@ -22,6 +22,8 @@ import com.stockpilot.core.port.out.DomainEventPublisher;
 import com.stockpilot.core.port.out.SaleRepository;
 import com.stockpilot.core.port.out.StockMovementRepository;
 import com.stockpilot.core.query.PageQuery;
+import com.stockpilot.application.support.ProductFixtures;
+import com.stockpilot.core.port.out.ProductRepository;
 import com.stockpilot.core.query.PageResult;
 import com.stockpilot.core.query.SaleFilter;
 import com.stockpilot.core.query.SaleSearchCriteria;
@@ -41,6 +43,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class SaleManagementServiceTest {
 
     @Mock private SaleRepository saleRepository;
+    @Mock private ProductRepository productRepository;
     @Mock private StockMovementRepository movementRepository;
     @Mock private DomainEventPublisher eventPublisher;
 
@@ -50,9 +53,10 @@ class SaleManagementServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new SaleManagementService(saleRepository,
+        service = new SaleManagementService(saleRepository, productRepository,
                 new StockLedger(movementRepository, eventPublisher), new SaleMapper());
         coffee = Product.create("C-1", "Coffee", new BigDecimal("20.00"), 10, 3);
+        ProductFixtures.setId(coffee, 1L);
         sale = Sale.open(PaymentMethod.PIX, "SALE-000007");
         sale.addItem(coffee, 4);
         coffee.removeStock(4);
@@ -61,6 +65,7 @@ class SaleManagementServiceTest {
     @Test
     void shouldCancelSaleRestoringStockAndRecordingMovements() {
         when(saleRepository.findById(7L)).thenReturn(Optional.of(sale));
+        when(productRepository.findAllByIdForUpdate(List.of(1L))).thenReturn(List.of(coffee));
         when(movementRepository.save(any(StockMovement.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         SaleResponse response = service.cancel(7L);
@@ -74,6 +79,34 @@ class SaleManagementServiceTest {
         assertThat(captor.getValue().getQuantity()).isEqualTo(4);
         assertThat(captor.getValue().getBalanceAfter()).isEqualTo(10);
         assertThat(captor.getValue().getReference()).isEqualTo("SALE-000007");
+    }
+
+    @Test
+    void shouldLockEveryProductOfTheSaleInAscendingIdOrderBeforeRestoring() {
+        Product tea = ProductFixtures.product(2L, "T-1", 5);
+        Sale mixed = Sale.open(PaymentMethod.PIX, "SALE-000008");
+        mixed.addItem(tea, 2);
+        tea.removeStock(2);
+        mixed.addItem(coffee, 1);
+        coffee.removeStock(1);
+        when(saleRepository.findById(8L)).thenReturn(Optional.of(mixed));
+        when(productRepository.findAllByIdForUpdate(List.of(1L, 2L))).thenReturn(List.of(coffee, tea));
+        when(movementRepository.save(any(StockMovement.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.cancel(8L);
+
+        assertThat(tea.getQuantity()).isEqualTo(5);
+        assertThat(coffee.getQuantity()).isEqualTo(6);
+    }
+
+    @Test
+    void shouldNotTakeLocksWhenTheSaleIsAlreadyCancelled() {
+        sale.cancel();
+        when(saleRepository.findById(7L)).thenReturn(Optional.of(sale));
+
+        assertThatThrownBy(() -> service.cancel(7L)).isInstanceOf(BusinessRuleException.class);
+
+        verify(productRepository, never()).findAllByIdForUpdate(any());
     }
 
     @Test

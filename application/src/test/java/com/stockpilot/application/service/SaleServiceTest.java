@@ -12,6 +12,7 @@ import com.stockpilot.core.port.in.dto.SaleItemRequest;
 import com.stockpilot.core.port.in.dto.SaleRequest;
 import com.stockpilot.core.port.in.dto.SaleResponse;
 import com.stockpilot.application.mapper.SaleMapper;
+import com.stockpilot.application.support.ProductFixtures;
 import com.stockpilot.core.domain.PaymentMethod;
 import com.stockpilot.core.domain.Product;
 import com.stockpilot.core.domain.Sale;
@@ -27,7 +28,6 @@ import com.stockpilot.core.domain.StockMovement;
 import org.mockito.ArgumentCaptor;
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -53,6 +53,7 @@ class SaleServiceTest {
                 new StockLedger(movementRepository, eventPublisher), receiptNumberGenerator);
         lenient().when(receiptNumberGenerator.next()).thenReturn("SALE-000123");
         coffee = Product.create("C-1", "Coffee", new BigDecimal("20.00"), 10, 3);
+        ProductFixtures.setId(coffee, 1L);
     }
 
     private SaleRequest requestFor(int quantity, BigDecimal discount) {
@@ -60,14 +61,14 @@ class SaleServiceTest {
     }
 
     private void stubSave() {
-        when(productRepository.findById(1L)).thenReturn(Optional.of(coffee));
+        when(productRepository.findAllByIdForUpdate(List.of(1L))).thenReturn(List.of(coffee));
         when(saleRepository.save(any(Sale.class))).thenAnswer(invocation -> invocation.getArgument(0));
         lenient().when(movementRepository.save(any(StockMovement.class))).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @Test
     void shouldCheckoutAndDecreaseStock() {
-        when(productRepository.findById(1L)).thenReturn(Optional.of(coffee));
+        when(productRepository.findAllByIdForUpdate(List.of(1L))).thenReturn(List.of(coffee));
         when(saleRepository.save(any(Sale.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         SaleResponse response = saleService.checkout(requestFor(2, null));
@@ -79,7 +80,7 @@ class SaleServiceTest {
 
     @Test
     void shouldRecordOutMovementWithSaleReference() {
-        when(productRepository.findById(1L)).thenReturn(Optional.of(coffee));
+        when(productRepository.findAllByIdForUpdate(List.of(1L))).thenReturn(List.of(coffee));
         when(saleRepository.save(any(Sale.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(movementRepository.save(any(StockMovement.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -96,7 +97,7 @@ class SaleServiceTest {
 
     @Test
     void shouldApplyDiscount() {
-        when(productRepository.findById(1L)).thenReturn(Optional.of(coffee));
+        when(productRepository.findAllByIdForUpdate(List.of(1L))).thenReturn(List.of(coffee));
         when(saleRepository.save(any(Sale.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         SaleResponse response = saleService.checkout(requestFor(5, new BigDecimal("10")));
@@ -107,7 +108,7 @@ class SaleServiceTest {
 
     @Test
     void shouldPublishLowStockEventWhenStockReachesMinimum() {
-        when(productRepository.findById(1L)).thenReturn(Optional.of(coffee));
+        when(productRepository.findAllByIdForUpdate(List.of(1L))).thenReturn(List.of(coffee));
         when(saleRepository.save(any(Sale.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(movementRepository.save(any(StockMovement.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -118,7 +119,7 @@ class SaleServiceTest {
 
     @Test
     void shouldFailWhenStockIsInsufficient() {
-        when(productRepository.findById(1L)).thenReturn(Optional.of(coffee));
+        when(productRepository.findAllByIdForUpdate(List.of(1L))).thenReturn(List.of(coffee));
 
         assertThatThrownBy(() -> saleService.checkout(requestFor(11, null)))
                 .isInstanceOf(BusinessRuleException.class);
@@ -129,7 +130,7 @@ class SaleServiceTest {
     @Test
     void shouldRejectInactiveProduct() {
         coffee.deactivate();
-        when(productRepository.findById(1L)).thenReturn(Optional.of(coffee));
+        when(productRepository.findAllByIdForUpdate(List.of(1L))).thenReturn(List.of(coffee));
 
         assertThatThrownBy(() -> saleService.checkout(requestFor(1, null)))
                 .isInstanceOf(BusinessRuleException.class)
@@ -141,7 +142,7 @@ class SaleServiceTest {
 
     @Test
     void shouldFailWhenProductDoesNotExist() {
-        when(productRepository.findById(1L)).thenReturn(Optional.empty());
+        when(productRepository.findAllByIdForUpdate(List.of(1L))).thenReturn(List.of());
 
         assertThatThrownBy(() -> saleService.checkout(requestFor(1, null)))
                 .isInstanceOf(ResourceNotFoundException.class);
@@ -170,7 +171,7 @@ class SaleServiceTest {
 
     @Test
     void shouldRejectPercentageAndAmountTogether() {
-        when(productRepository.findById(1L)).thenReturn(Optional.of(coffee));
+        when(productRepository.findAllByIdForUpdate(List.of(1L))).thenReturn(List.of(coffee));
 
         assertThatThrownBy(() -> saleService.checkout(new SaleRequest(PaymentMethod.PIX, new BigDecimal("10"),
                 new BigDecimal("5"), null, List.of(new SaleItemRequest(1L, 1)))))
@@ -180,7 +181,7 @@ class SaleServiceTest {
 
     @Test
     void shouldRejectDiscountAmountAboveSubtotal() {
-        when(productRepository.findById(1L)).thenReturn(Optional.of(coffee));
+        when(productRepository.findAllByIdForUpdate(List.of(1L))).thenReturn(List.of(coffee));
 
         assertThatThrownBy(() -> saleService.checkout(new SaleRequest(PaymentMethod.PIX, null,
                 new BigDecimal("21.00"), null, List.of(new SaleItemRequest(1L, 1)))))
@@ -200,11 +201,58 @@ class SaleServiceTest {
 
     @Test
     void shouldRejectCashAmountThatDoesNotCoverTotal() {
-        when(productRepository.findById(1L)).thenReturn(Optional.of(coffee));
+        when(productRepository.findAllByIdForUpdate(List.of(1L))).thenReturn(List.of(coffee));
 
         assertThatThrownBy(() -> saleService.checkout(new SaleRequest(PaymentMethod.CASH, null, null,
                 new BigDecimal("10.00"), List.of(new SaleItemRequest(1L, 2)))))
                 .isInstanceOf(BusinessRuleException.class);
         verify(saleRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldLockProductsInAscendingIdOrderWhateverTheRequestOrder() {
+        Product tea = ProductFixtures.product(2L, "T-1", 5);
+        when(productRepository.findAllByIdForUpdate(List.of(1L, 2L))).thenReturn(List.of(coffee, tea));
+        when(saleRepository.save(any(Sale.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(movementRepository.save(any(StockMovement.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        SaleResponse response = saleService.checkout(new SaleRequest(PaymentMethod.PIX, null, null, null,
+                List.of(new SaleItemRequest(2L, 1), new SaleItemRequest(1L, 1))));
+
+        assertThat(response.items()).extracting(item -> item.productId()).containsExactly(2L, 1L);
+        assertThat(coffee.getQuantity()).isEqualTo(9);
+        assertThat(tea.getQuantity()).isEqualTo(4);
+    }
+
+    @Test
+    void shouldLockEachProductOnceWhenTheSameProductAppearsTwice() {
+        when(productRepository.findAllByIdForUpdate(List.of(1L))).thenReturn(List.of(coffee));
+        when(saleRepository.save(any(Sale.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(movementRepository.save(any(StockMovement.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        saleService.checkout(new SaleRequest(PaymentMethod.PIX, null, null, null,
+                List.of(new SaleItemRequest(1L, 4), new SaleItemRequest(1L, 5))));
+
+        assertThat(coffee.getQuantity()).isEqualTo(1);
+    }
+
+    @Test
+    void shouldNotAllowTwoLinesOfTheSameProductToExceedStock() {
+        when(productRepository.findAllByIdForUpdate(List.of(1L))).thenReturn(List.of(coffee));
+
+        assertThatThrownBy(() -> saleService.checkout(new SaleRequest(PaymentMethod.PIX, null, null, null,
+                List.of(new SaleItemRequest(1L, 6), new SaleItemRequest(1L, 6)))))
+                .isInstanceOf(BusinessRuleException.class);
+        verify(saleRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldFailWhenOneOfSeveralProductsDoesNotExist() {
+        when(productRepository.findAllByIdForUpdate(List.of(1L, 9L))).thenReturn(List.of(coffee));
+
+        assertThatThrownBy(() -> saleService.checkout(new SaleRequest(PaymentMethod.PIX, null, null, null,
+                List.of(new SaleItemRequest(9L, 1), new SaleItemRequest(1L, 1)))))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("9");
     }
 }

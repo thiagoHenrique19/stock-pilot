@@ -41,7 +41,8 @@ public class StockMovementService implements AdjustStockUseCase, QueryStockMovem
     @Override
     @Transactional
     public ProductResponse adjust(Long productId, StockAdjustmentRequest request) {
-        Product product = getProduct(productId);
+        Product product = productRepository.findByIdForUpdate(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product", productId));
         product.adjustStock(request.quantity());
         stockLedger.record(product, MovementType.ADJUSTMENT, request.quantity(), request.reason(), null);
         return productMapper.toResponse(product);

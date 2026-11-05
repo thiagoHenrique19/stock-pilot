@@ -15,6 +15,8 @@ import jakarta.validation.constraints.NotBlank;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
+import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.dao.DeadlockLoserDataAccessException;
 import org.springframework.http.MediaType;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.web.servlet.MockMvc;
@@ -69,7 +71,23 @@ class GlobalExceptionHandlerTest {
     void shouldMapConcurrentUpdateToConflict() throws Exception {
         mockMvc.perform(get("/fail/conflict"))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.status").value(409));
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.type").value("urn:stockpilot:problem:concurrent-update"))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+    }
+
+    @Test
+    void shouldMapLockWaitTimeoutToConflictSoClientsCanRetry() throws Exception {
+        mockMvc.perform(get("/fail/lock-timeout"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.type").value("urn:stockpilot:problem:concurrent-update"))
+                .andExpect(jsonPath("$.detail").value("The resource was modified by another request, please retry"));
+    }
+
+    @Test
+    void shouldMapDeadlockVictimToConflict() throws Exception {
+        mockMvc.perform(get("/fail/deadlock"))
+                .andExpect(status().isConflict());
     }
 
     @Test
@@ -142,6 +160,16 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/conflict")
         void conflict() {
             throw new ObjectOptimisticLockingFailureException("Sale", 1L);
+        }
+
+        @GetMapping("/lock-timeout")
+        void lockTimeout() {
+            throw new CannotAcquireLockException("could not obtain lock");
+        }
+
+        @GetMapping("/deadlock")
+        void deadlock() {
+            throw new DeadlockLoserDataAccessException("deadlock detected", null);
         }
 
         @GetMapping("/unexpected")

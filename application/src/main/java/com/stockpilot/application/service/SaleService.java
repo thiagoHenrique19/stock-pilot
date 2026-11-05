@@ -14,6 +14,10 @@ import com.stockpilot.core.exception.ResourceNotFoundException;
 import com.stockpilot.core.port.out.ProductRepository;
 import com.stockpilot.core.port.out.ReceiptNumberGenerator;
 import com.stockpilot.core.port.out.SaleRepository;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,9 +46,12 @@ public class SaleService implements CheckoutSaleUseCase {
     @Transactional
     public SaleResponse checkout(SaleRequest request) {
         Sale sale = Sale.open(request.paymentMethod(), receiptNumberGenerator.next());
+        Map<Long, Product> products = lockProducts(request);
         for (SaleItemRequest item : request.items()) {
-            Product product = productRepository.findById(item.productId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Product", item.productId()));
+            Product product = products.get(item.productId());
+            if (product == null) {
+                throw new ResourceNotFoundException("Product", item.productId());
+            }
             sale.addItem(product, item.quantity());
             product.removeStock(item.quantity());
         }
@@ -56,5 +63,11 @@ public class SaleService implements CheckoutSaleUseCase {
             stockLedger.record(item.getProduct(), MovementType.OUT, -item.getQuantity(), "Sale", reference);
         }
         return saleMapper.toResponse(saved);
+    }
+
+    private Map<Long, Product> lockProducts(SaleRequest request) {
+        List<Long> ids = request.items().stream().map(SaleItemRequest::productId).distinct().sorted().toList();
+        return productRepository.findAllByIdForUpdate(ids).stream()
+                .collect(Collectors.toMap(Product::getId, Function.identity()));
     }
 }

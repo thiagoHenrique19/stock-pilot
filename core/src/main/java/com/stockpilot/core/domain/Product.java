@@ -8,6 +8,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Version;
 import jakarta.persistence.ManyToOne;
 import java.math.BigDecimal;
 import java.util.Locale;
@@ -37,6 +38,9 @@ public class Product {
 
     private int quantity;
     private int minimumQuantity;
+
+    @Version
+    private long version;
 
     protected Product() {
     }
@@ -166,5 +170,9 @@ public class Product {
 
     public int getMinimumQuantity() {
         return minimumQuantity;
+    }
+
+    public long getVersion() {
+        return version;
     }
 }

@@ -5,9 +5,14 @@ import com.stockpilot.core.port.out.ProductRepository;
 import com.stockpilot.core.query.PageQuery;
 import com.stockpilot.core.query.PageResult;
 import com.stockpilot.core.query.ProductSearchCriteria;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import java.time.Duration;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
@@ -17,9 +22,14 @@ class ProductPersistenceAdapter implements ProductRepository {
     private static final Set<String> SORTABLE_FIELDS = Set.of("id", "sku", "name", "price", "quantity");
 
     private final JpaProductRepository jpaRepository;
+    private final EntityManager entityManager;
+    private final Duration lockTimeout;
 
-    ProductPersistenceAdapter(JpaProductRepository jpaRepository) {
+    ProductPersistenceAdapter(JpaProductRepository jpaRepository, EntityManager entityManager,
+                              @Value("${app.locking.timeout:5s}") Duration lockTimeout) {
+        this.lockTimeout = lockTimeout;
         this.jpaRepository = jpaRepository;
+        this.entityManager = entityManager;
     }
 
     @Override
@@ -30,6 +40,20 @@ class ProductPersistenceAdapter implements ProductRepository {
     @Override
     public Optional<Product> findById(Long id) {
         return jpaRepository.findById(id);
+    }
+
+    @Override
+    public List<Product> findAllByIdForUpdate(Collection<Long> ids) {
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        entityManager.createNativeQuery("select set_config('lock_timeout', ?1, true)")
+                .setParameter(1, lockTimeout.toMillis() + "ms").getSingleResult();
+        List<Product> locked = jpaRepository.lockAllByIdOrderById(ids);
+        // Hibernate keeps the state of entities that are already in the persistence context and
+        // only takes the row lock, so refresh to see what a concurrent commit changed.
+        locked.forEach(product -> entityManager.refresh(product, LockModeType.PESSIMISTIC_WRITE));
+        return locked;
     }
 
     @Override
