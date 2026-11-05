@@ -2,13 +2,37 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: stockpilot
-      POSTGRES_USER: stockpilot
-      POSTGRES_PASSWORD: stockpilot
+      POSTGRES_DB: ${POSTGRES_DB:-stockpilot}
+      POSTGRES_USER: ${POSTGRES_USER:-stockpilot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-stockpilot}
     ports:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-hmg}
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-stockpilot}
+      DB_USER: ${POSTGRES_USER:-stockpilot}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-stockpilot}
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/8080 && printf \"GET /actuator/health HTTP/1.0\\r\\n\\r\\n\" >&3 && grep -q UP <&3'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
 
 volumes:
   postgres-data:
