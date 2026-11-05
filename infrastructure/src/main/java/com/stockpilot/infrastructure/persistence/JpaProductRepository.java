@@ -3,9 +3,10 @@ package com.stockpilot.infrastructure.persistence;
 import com.stockpilot.core.domain.Product;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 
-interface JpaProductRepository extends JpaRepository<Product, Long> {
+interface JpaProductRepository extends JpaRepository<Product, Long>, JpaSpecificationExecutor<Product> {
 
     boolean existsBySku(String sku);
 
