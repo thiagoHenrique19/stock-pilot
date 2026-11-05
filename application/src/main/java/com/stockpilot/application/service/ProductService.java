@@ -1,13 +1,20 @@
 package com.stockpilot.application.service;
 
+import com.stockpilot.application.mapper.ProductMapper;
+import com.stockpilot.core.domain.Category;
+import com.stockpilot.core.domain.Product;
+import com.stockpilot.core.exception.BusinessRuleException;
+import com.stockpilot.core.exception.ResourceNotFoundException;
 import com.stockpilot.core.port.in.ManageProductsUseCase;
 import com.stockpilot.core.port.in.dto.ProductRequest;
 import com.stockpilot.core.port.in.dto.ProductResponse;
+import com.stockpilot.core.port.in.dto.ProductUpdateRequest;
 import com.stockpilot.core.port.in.dto.RestockRequest;
-import com.stockpilot.application.mapper.ProductMapper;
-import com.stockpilot.core.exception.BusinessRuleException;
-import com.stockpilot.core.exception.ResourceNotFoundException;
+import com.stockpilot.core.port.out.CategoryRepository;
 import com.stockpilot.core.port.out.ProductRepository;
+import com.stockpilot.core.query.PageQuery;
+import com.stockpilot.core.query.PageResult;
+import com.stockpilot.core.query.ProductSearchCriteria;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,27 +23,57 @@ import org.springframework.transaction.annotation.Transactional;
 public class ProductService implements ManageProductsUseCase {
 
     private final ProductRepository productRepository;
+    private final CategoryRepository categoryRepository;
     private final ProductMapper productMapper;
 
-    public ProductService(ProductRepository productRepository, ProductMapper productMapper) {
+    public ProductService(ProductRepository productRepository,
+                          CategoryRepository categoryRepository,
+                          ProductMapper productMapper) {
         this.productRepository = productRepository;
+        this.categoryRepository = categoryRepository;
         this.productMapper = productMapper;
     }
 
     @Override
     @Transactional
     public ProductResponse register(ProductRequest request) {
-        if (productRepository.existsBySku(request.sku())) {
-            throw new BusinessRuleException("SKU already registered: " + request.sku());
+        String sku = Product.normalizeSku(request.sku());
+        if (productRepository.existsBySku(sku)) {
+            throw new BusinessRuleException("SKU already registered: " + sku);
         }
-        return productMapper.toResponse(productRepository.save(productMapper.toEntity(request)));
+        Category category = resolveCategory(request.categoryId());
+        return productMapper.toResponse(productRepository.save(productMapper.toEntity(request, category)));
+    }
+
+    @Override
+    @Transactional
+    public ProductResponse update(Long id, ProductUpdateRequest request) {
+        Product product = getProduct(id);
+        product.update(request.name(), request.description(), request.price(),
+                request.minimumQuantity(), resolveCategory(request.categoryId()));
+        return productMapper.toResponse(product);
+    }
+
+    @Override
+    @Transactional
+    public ProductResponse deactivate(Long id) {
+        Product product = getProduct(id);
+        product.deactivate();
+        return productMapper.toResponse(product);
+    }
+
+    @Override
+    @Transactional
+    public ProductResponse reactivate(Long id) {
+        Product product = getProduct(id);
+        product.reactivate();
+        return productMapper.toResponse(product);
     }
 
     @Override
     @Transactional
     public ProductResponse restock(Long id, RestockRequest request) {
-        var product = productRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Product", id));
+        Product product = getProduct(id);
         product.addStock(request.quantity());
         return productMapper.toResponse(product);
     }
@@ -44,18 +81,31 @@ public class ProductService implements ManageProductsUseCase {
     @Override
     @Transactional(readOnly = true)
     public ProductResponse findById(Long id) {
-        return productRepository.findById(id)
-                .map(productMapper::toResponse)
-                .orElseThrow(() -> new ResourceNotFoundException("Product", id));
+        return productMapper.toResponse(getProduct(id));
     }
 
+    @Override
     @Transactional(readOnly = true)
-    public List<ProductResponse> listAll() {
-        return productRepository.findAll().stream().map(productMapper::toResponse).toList();
+    public PageResult<ProductResponse> search(ProductSearchCriteria criteria, PageQuery pageQuery) {
+        return productRepository.search(criteria, pageQuery).map(productMapper::toResponse);
     }
 
+    @Override
     @Transactional(readOnly = true)
     public List<ProductResponse> listLowStock() {
         return productRepository.findLowStock().stream().map(productMapper::toResponse).toList();
+    }
+
+    private Product getProduct(Long id) {
+        return productRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Product", id));
+    }
+
+    private Category resolveCategory(Long categoryId) {
+        if (categoryId == null) {
+            return null;
+        }
+        return categoryRepository.findById(categoryId)
+                .orElseThrow(() -> new ResourceNotFoundException("Category", categoryId));
     }
 }

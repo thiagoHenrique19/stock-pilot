@@ -43,7 +43,7 @@ public class Product {
 
     private Product(String sku, String name, String description, BigDecimal price, int quantity,
                     int minimumQuantity, Category category) {
-        this.sku = sku.trim().toUpperCase(Locale.ROOT);
+        this.sku = normalizeSku(sku);
         this.name = name;
         this.description = description;
         this.category = category;
@@ -61,6 +61,10 @@ public class Product {
         requireValidPrice(price);
         requireValidQuantities(quantity, minimumQuantity);
         return new Product(sku, name, description, price, quantity, minimumQuantity, category);
+    }
+
+    public static String normalizeSku(String sku) {
+        return sku.trim().toUpperCase(Locale.ROOT);
     }
 
     public void update(String name, String description, BigDecimal price, int minimumQuantity, Category category) {
