@@ -50,10 +50,15 @@ public class IdempotencyService implements ExecuteIdempotentlyUseCase {
     }
 
     private <T> T run(String scope, String key, Supplier<T> action) {
-        return transaction.execute(status -> {
-            T response = action.get();
-            store.complete(scope, key, codec.write(response));
-            return response;
-        });
+        try {
+            return transaction.execute(status -> {
+                T response = action.get();
+                store.complete(scope, key, codec.write(response));
+                return response;
+            });
+        } catch (RuntimeException failure) {
+            store.release(scope, key);
+            throw failure;
+        }
     }
 }

@@ -140,4 +140,27 @@ class IdempotencyServiceTest {
         assertThat(runs).hasValue(1);
         verify(store).complete("sales", "k1", "{\"response\":true}");
     }
+
+    @Test
+    void shouldReleaseTheKeyWhenTheActionFailsSoTheClientCanRetry() {
+        when(store.reserve("sales", "k1", hash())).thenReturn(true);
+
+        assertThatThrownBy(() -> service.execute("sales", "k1", "request", String.class, () -> {
+            throw new BusinessRuleException("Insufficient stock");
+        })).isInstanceOf(BusinessRuleException.class);
+
+        verify(store).release("sales", "k1");
+        verify(store, never()).complete(any(), any(), any());
+    }
+
+    @Test
+    void shouldReleaseTheKeyWhenStoringTheSnapshotFails() {
+        when(store.reserve("sales", "k1", hash())).thenReturn(true);
+        org.mockito.Mockito.doThrow(new IllegalStateException("db down")).when(store).complete(any(), any(), any());
+
+        assertThatThrownBy(() -> service.execute("sales", "k1", "request", String.class, this::run))
+                .isInstanceOf(IllegalStateException.class);
+
+        verify(store).release("sales", "k1");
+    }
 }
