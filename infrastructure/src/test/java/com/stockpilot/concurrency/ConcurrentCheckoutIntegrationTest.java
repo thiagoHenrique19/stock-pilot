@@ -62,4 +62,25 @@ class ConcurrentCheckoutIntegrationTest extends ConcurrencyTestSupport {
         assertThat(quantityOf(productId)).isEqualTo(10 - soldUnits).isGreaterThanOrEqualTo(0);
         assertThat(balanceChainBreaks(productId)).isEmpty();
     }
+
+    @Test
+    void shouldNotDeadlockWhenSalesListTheSameProductsInOppositeOrder() throws Exception {
+        long first = newProduct(1000);
+        long second = newProduct(1000);
+        List<Callable<?>> buyers = new ArrayList<>();
+        for (int i = 0; i < 40; i++) {
+            List<SaleItemRequest> items = i % 2 == 0
+                    ? List.of(new SaleItemRequest(first, 1), new SaleItemRequest(second, 1))
+                    : List.of(new SaleItemRequest(second, 1), new SaleItemRequest(first, 1));
+            buyers.add(() -> checkout.checkout(new SaleRequest(PaymentMethod.PIX, null, null, null, items)));
+        }
+
+        List<Outcome> outcomes = ConcurrentRun.all(buyers);
+
+        assertThat(outcomes).allSatisfy(o -> assertThat(o.error()).isNull());
+        assertThat(quantityOf(first)).isEqualTo(960);
+        assertThat(quantityOf(second)).isEqualTo(960);
+        assertThat(balanceChainBreaks(first)).isEmpty();
+        assertThat(balanceChainBreaks(second)).isEmpty();
+    }
 }
