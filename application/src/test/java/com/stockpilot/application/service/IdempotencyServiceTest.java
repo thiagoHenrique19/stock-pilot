@@ -1,12 +1,15 @@
 package com.stockpilot.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.stockpilot.core.exception.BusinessRuleException;
+import com.stockpilot.core.exception.RequestInProgressException;
 import com.stockpilot.core.idempotency.IdempotencyRecord;
 import com.stockpilot.core.idempotency.RequestFingerprint;
 import com.stockpilot.core.port.in.ExecuteIdempotentlyUseCase.Result;
@@ -77,5 +80,47 @@ class IdempotencyServiceTest {
         assertThat(result.replayed()).isTrue();
         assertThat(runs).hasValue(0);
         verify(store, never()).complete(any(), any(), any());
+    }
+
+    @Test
+    void shouldRejectTheSameKeyWithADifferentPayload() {
+        when(store.reserve("sales", "k1", hash())).thenReturn(false);
+        when(store.find("sales", "k1")).thenReturn(Optional.of(new IdempotencyRecord("sales", "k1",
+                RequestFingerprint.of("something else"), IdempotencyRecord.Status.COMPLETED, "{}", Instant.now())));
+
+        assertThatThrownBy(() -> service.execute("sales", "k1", "request", String.class, this::run))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("different request");
+        assertThat(runs).hasValue(0);
+    }
+
+    @Test
+    void shouldRejectAMismatchedPayloadEvenWhileTheFirstRequestIsStillRunning() {
+        when(store.reserve("sales", "k1", hash())).thenReturn(false);
+        when(store.find("sales", "k1")).thenReturn(Optional.of(new IdempotencyRecord("sales", "k1",
+                RequestFingerprint.of("something else"), IdempotencyRecord.Status.IN_PROGRESS, null, Instant.now())));
+
+        assertThatThrownBy(() -> service.execute("sales", "k1", "request", String.class, this::run))
+                .isInstanceOf(BusinessRuleException.class);
+    }
+
+    @Test
+    void shouldAskTheClientToRetryWhileTheFirstRequestIsStillRunning() {
+        when(store.reserve("sales", "k1", hash())).thenReturn(false);
+        when(store.find("sales", "k1")).thenReturn(Optional.of(new IdempotencyRecord("sales", "k1", hash(),
+                IdempotencyRecord.Status.IN_PROGRESS, null, Instant.now())));
+
+        assertThatThrownBy(() -> service.execute("sales", "k1", "request", String.class, this::run))
+                .isInstanceOf(RequestInProgressException.class);
+        assertThat(runs).hasValue(0);
+    }
+
+    @Test
+    void shouldAskTheClientToRetryWhenTheReservationVanishedBetweenTheTwoLookups() {
+        when(store.reserve("sales", "k1", hash())).thenReturn(false);
+        when(store.find("sales", "k1")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.execute("sales", "k1", "request", String.class, this::run))
+                .isInstanceOf(RequestInProgressException.class);
     }
 }

@@ -1,5 +1,6 @@
 package com.stockpilot.application.service;
 
+import com.stockpilot.core.exception.BusinessRuleException;
 import com.stockpilot.core.exception.RequestInProgressException;
 import com.stockpilot.core.idempotency.RequestFingerprint;
 import com.stockpilot.core.port.in.ExecuteIdempotentlyUseCase;
@@ -30,6 +31,9 @@ public class IdempotencyService implements ExecuteIdempotentlyUseCase {
             return new Result<>(run(scope, key, action), false);
         }
         var existing = store.find(scope, key).orElseThrow(() -> new RequestInProgressException("Retry the request"));
+        if (!existing.requestHash().equals(hash)) {
+            throw new BusinessRuleException("Idempotency-Key was already used with a different request");
+        }
         if (existing.isCompleted()) {
             return new Result<>(codec.read(existing.responseSnapshot(), responseType), true);
         }
