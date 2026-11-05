@@ -82,7 +82,11 @@ public class ProductService implements ManageProductsUseCase {
     @Transactional
     public ProductResponse deactivate(Long id) {
         Product product = getProduct(id);
+        boolean wasActive = product.isActive();
         product.deactivate();
+        if (wasActive) {
+            audit(product, "active", true, false);
+        }
         return productMapper.toResponse(product);
     }
 
@@ -90,7 +94,11 @@ public class ProductService implements ManageProductsUseCase {
     @Transactional
     public ProductResponse reactivate(Long id) {
         Product product = getProduct(id);
+        boolean wasActive = product.isActive();
         product.reactivate();
+        if (!wasActive) {
+            audit(product, "active", false, true);
+        }
         return productMapper.toResponse(product);
     }
 

@@ -240,4 +240,37 @@ class ProductServiceTest {
 
         verify(auditLog, never()).save(any());
     }
+
+    @Test
+    void shouldAuditDeactivationAndReactivation() {
+        when(productRepository.findById(1L)).thenReturn(Optional.of(coffee));
+
+        service.deactivate(1L);
+        service.reactivate(1L);
+
+        ArgumentCaptor<AuditEntry> captor = ArgumentCaptor.forClass(AuditEntry.class);
+        verify(auditLog, org.mockito.Mockito.times(2)).save(captor.capture());
+        assertThat(captor.getAllValues()).extracting(AuditEntry::getField).containsOnly("active");
+        assertThat(captor.getAllValues()).extracting(AuditEntry::getOldValue).containsExactly("true", "false");
+        assertThat(captor.getAllValues()).extracting(AuditEntry::getNewValue).containsExactly("false", "true");
+    }
+
+    @Test
+    void shouldNotAuditDeactivatingAnAlreadyInactiveProduct() {
+        coffee.deactivate();
+        when(productRepository.findById(1L)).thenReturn(Optional.of(coffee));
+
+        service.deactivate(1L);
+
+        verify(auditLog, never()).save(any());
+    }
+
+    @Test
+    void shouldNotAuditReactivatingAnActiveProduct() {
+        when(productRepository.findById(1L)).thenReturn(Optional.of(coffee));
+
+        service.reactivate(1L);
+
+        verify(auditLog, never()).save(any());
+    }
 }
