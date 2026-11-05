@@ -3,13 +3,16 @@ package com.stockpilot.infrastructure.web.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.stockpilot.core.port.in.ExecuteIdempotentlyUseCase;
 import com.stockpilot.core.port.in.ManageProductsUseCase;
 import com.stockpilot.core.port.in.dto.ProductResponse;
 import com.stockpilot.core.query.PageQuery;
@@ -35,6 +38,7 @@ class ProductControllerTest {
 
     @Autowired private MockMvc mockMvc;
     @MockBean private ManageProductsUseCase productService;
+    @MockBean private ExecuteIdempotentlyUseCase idempotency;
 
     private final ProductResponse response = new ProductResponse(1L, "SKU-1", "Coffee", "Roasted", 2L, "Drinks",
             new BigDecimal("19.90"), 10, 3, false, true);
@@ -125,5 +129,28 @@ class ProductControllerTest {
         mockMvc.perform(get("/api/products/low-stock"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].name").value("Coffee"));
+    }
+
+    @Test
+    void shouldRestockWithoutIdempotencyKey() throws Exception {
+        when(productService.restock(eq(1L), any())).thenReturn(response);
+
+        mockMvc.perform(post("/api/products/1/restock").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"quantity\":5}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sku").value("SKU-1"));
+
+        verifyNoInteractions(idempotency);
+    }
+
+    @Test
+    void shouldScopeTheRestockKeyToTheProduct() throws Exception {
+        when(idempotency.execute(eq("products.restock:1"), eq("abc"), any(), eq(ProductResponse.class), any()))
+                .thenReturn(new ExecuteIdempotentlyUseCase.Result<>(response, true));
+
+        mockMvc.perform(post("/api/products/1/restock").header("Idempotency-Key", "abc")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"quantity\":5}"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Idempotent-Replayed", "true"));
     }
 }
