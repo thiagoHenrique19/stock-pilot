@@ -10,5 +10,7 @@ import java.util.List;
 public record SaleRequest(
         @NotNull PaymentMethod paymentMethod,
         BigDecimal discountPercentage,
+        BigDecimal discountAmount,
+        BigDecimal amountReceived,
         @NotEmpty List<@Valid SaleItemRequest> items) {
 }
