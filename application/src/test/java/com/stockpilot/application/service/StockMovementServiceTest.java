@@ -52,7 +52,7 @@ class StockMovementServiceTest {
 
     @Test
     void shouldAdjustStockAndRecordMovementWithReason() {
-        when(productRepository.findById(1L)).thenReturn(Optional.of(coffee));
+        when(productRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(coffee));
         when(movementRepository.save(any(StockMovement.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ProductResponse response = service.adjust(1L, new StockAdjustmentRequest(-2, "Damaged"));
@@ -68,7 +68,7 @@ class StockMovementServiceTest {
 
     @Test
     void shouldPublishLowStockEventWhenNegativeAdjustmentReachesMinimum() {
-        when(productRepository.findById(1L)).thenReturn(Optional.of(coffee));
+        when(productRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(coffee));
         when(movementRepository.save(any(StockMovement.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         service.adjust(1L, new StockAdjustmentRequest(-7, "Inventory count"));
@@ -79,7 +79,7 @@ class StockMovementServiceTest {
     @Test
     void shouldNotPublishLowStockEventForPositiveAdjustment() {
         coffee.removeStock(8);
-        when(productRepository.findById(1L)).thenReturn(Optional.of(coffee));
+        when(productRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(coffee));
         when(movementRepository.save(any(StockMovement.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         service.adjust(1L, new StockAdjustmentRequest(1, "Found in storage"));
@@ -89,7 +89,7 @@ class StockMovementServiceTest {
 
     @Test
     void shouldRejectAdjustmentBelowZeroWithoutRecordingMovement() {
-        when(productRepository.findById(1L)).thenReturn(Optional.of(coffee));
+        when(productRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(coffee));
 
         assertThatThrownBy(() -> service.adjust(1L, new StockAdjustmentRequest(-11, "Loss")))
                 .isInstanceOf(BusinessRuleException.class);
@@ -98,7 +98,7 @@ class StockMovementServiceTest {
 
     @Test
     void shouldFailWhenProductDoesNotExist() {
-        when(productRepository.findById(1L)).thenReturn(Optional.empty());
+        when(productRepository.findByIdForUpdate(1L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.adjust(1L, new StockAdjustmentRequest(1, "x")))
                 .isInstanceOf(ResourceNotFoundException.class);

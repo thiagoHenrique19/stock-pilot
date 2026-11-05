@@ -21,6 +21,10 @@ public interface ProductRepository {
      */
     List<Product> findAllByIdForUpdate(Collection<Long> ids);
 
+    default Optional<Product> findByIdForUpdate(Long id) {
+        return findAllByIdForUpdate(List.of(id)).stream().findFirst();
+    }
+
     PageResult<Product> search(ProductSearchCriteria criteria, PageQuery pageQuery);
 
     boolean existsBySku(String sku);
